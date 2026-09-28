@@ -5,12 +5,10 @@ blob-report/
 .env
 
 # Test artefacts / run records
-created-users.txt
-last-created-user.json
-email-counters.json
 
 # ── added: generated run output (thousands of files, all reproducible) ──
-test-reports/
+test-reports/*
+!test-reports/credentials_*.csv
 compare-reports/
 brand-reports/
 blob-reports/
@@ -19,8 +17,14 @@ blob-reports/
 playwright/.cache/
 
 # Provisioned-account credential dumps written by scripts/create-users.ts.
-credentials_*.csv
 
 .env.local
 .env.*
 !.env.example
+
+# ── Account ledgers ARE tracked, deliberately ──────────────────────────
+# These record the throwaway @yopmail.com accounts the suite creates. They are
+# kept in git on purpose so the team shares one history of which accounts exist
+# on which environment. yopmail inboxes are readable by anyone who knows the
+# address, so the password adds little; real secrets (API tokens, SMTP, the
+# portal admin credentials) stay in .env, which is still ignored.
