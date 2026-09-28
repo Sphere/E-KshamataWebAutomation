@@ -1,0 +1,550 @@
+<title>Ekshamata Web Automation — Project Guide</title>
+<style>
+  :root {
+    --navy:#17283C; --navy-300:#2D3E54; --navy-100:#7E8A9A;
+    --teal:#1E8F8E; --teal-600:#186E6E; --teal-50:#E3F7F6;
+    --gold:#F0A500; --gold-700:#9A6800; --gold-50:#FEF6E0;
+    --page:#F6F7F9; --surface:#FFFFFF; --surface-2:#F0F2F5; --border:#D8DEE5;
+    --text:#0D1218; --muted:#5D6675; --heading:#17283C;
+    --ok:#15803D; --ok-bg:#DCFCE7; --warn:#B45309; --warn-bg:#FEF3C7;
+    --code-bg:#0F1B2A; --code-text:#D6E2F0; --code-inline-bg:#EAEEF3; --code-inline-text:#17283C;
+    --link:#186E6E;
+    --shadow:0 1px 2px rgba(23,40,60,.06), 0 8px 24px rgba(23,40,60,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page:#0B1420; --surface:#111F30; --surface-2:#0E1A29; --border:#243549;
+      --text:#E4EAF1; --muted:#93A0B2; --heading:#EAF0F7;
+      --teal-50:#0E2B2B; --gold-50:#2A2110;
+      --ok:#4ADE80; --ok-bg:#0E2A1A; --warn:#FBBF24; --warn-bg:#2C2109;
+      --code-bg:#0A121D; --code-text:#CBD9EA; --code-inline-bg:#1B2A3C; --code-inline-text:#CFE0F0;
+      --link:#5FC7C4;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --page:#0B1420; --surface:#111F30; --surface-2:#0E1A29; --border:#243549;
+    --text:#E4EAF1; --muted:#93A0B2; --heading:#EAF0F7;
+    --teal-50:#0E2B2B; --gold-50:#2A2110;
+    --ok:#4ADE80; --ok-bg:#0E2A1A; --warn:#FBBF24; --warn-bg:#2C2109;
+    --code-bg:#0A121D; --code-text:#CBD9EA; --code-inline-bg:#1B2A3C; --code-inline-text:#CFE0F0;
+    --link:#5FC7C4;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+  }
+  :root[data-theme="light"] {
+    --page:#F6F7F9; --surface:#FFFFFF; --surface-2:#F0F2F5; --border:#D8DEE5;
+    --text:#0D1218; --muted:#5D6675; --heading:#17283C;
+    --teal-50:#E3F7F6; --gold-50:#FEF6E0;
+    --ok:#15803D; --ok-bg:#DCFCE7; --warn:#B45309; --warn-bg:#FEF3C7;
+    --code-bg:#0F1B2A; --code-text:#D6E2F0; --code-inline-bg:#EAEEF3; --code-inline-text:#17283C;
+    --link:#186E6E;
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--page); color:var(--text);
+    font-family:"Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:1060px; margin:0 auto; padding:0 24px 96px; }
+
+  /* Header */
+  header.masthead {
+    background:linear-gradient(180deg, var(--navy), var(--navy-300));
+    color:#EAF0F7; padding:56px 0 44px; border-bottom:4px solid var(--teal);
+  }
+  header.masthead .wrap { padding-bottom:0; }
+  .eyebrow { font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:#8FB6B5; font-weight:700; }
+  header.masthead h1 { font-size:40px; line-height:1.12; margin:10px 0 8px; font-weight:700; color:#fff; text-wrap:balance; letter-spacing:-.01em; }
+  header.masthead p { font-size:17px; color:#C4D0DE; max-width:64ch; margin:0; }
+  .masthead-meta { display:flex; flex-wrap:wrap; gap:8px; margin-top:22px; }
+  .chip { font-size:12.5px; font-weight:600; padding:5px 11px; border-radius:9999px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.16); color:#DCE6F1; }
+  .chip.gold { background:var(--gold); color:var(--navy); border-color:transparent; }
+
+  /* Sections */
+  section { margin-top:52px; scroll-margin-top:20px; }
+  h2 { font-size:24px; font-weight:700; color:var(--heading); margin:0 0 4px; letter-spacing:-.01em; text-wrap:balance; }
+  h2 .num { color:var(--teal); font-variant-numeric:tabular-nums; margin-right:12px; }
+  h2 + .rule { height:2px; background:linear-gradient(90deg,var(--teal),transparent); border:0; margin:12px 0 22px; }
+  h3 { font-size:17px; font-weight:700; color:var(--heading); margin:26px 0 8px; }
+  p { margin:12px 0; max-width:72ch; }
+  a { color:var(--link); text-decoration:underline; text-underline-offset:2px; }
+  a:focus-visible, .toc a:focus-visible { outline:2px solid var(--teal); outline-offset:2px; border-radius:3px; }
+  strong { color:var(--heading); }
+
+  /* Callouts */
+  .callout { border-radius:8px; padding:14px 16px 14px 18px; margin:18px 0; border:1px solid var(--border); border-left-width:4px; background:var(--surface); }
+  .callout.info { background:var(--teal-50); border-left-color:var(--teal); }
+  .callout.warn { background:var(--gold-50); border-left-color:var(--gold); }
+  .callout .k { font-weight:700; color:var(--heading); }
+
+  /* TOC */
+  .toc { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:18px 20px; box-shadow:var(--shadow); }
+  .toc ol { margin:0; padding:0; list-style:none; columns:2; column-gap:32px; }
+  .toc li { margin:5px 0; break-inside:avoid; font-variant-numeric:tabular-nums; }
+  .toc a { text-decoration:none; color:var(--text); }
+  .toc a:hover { color:var(--link); text-decoration:underline; }
+  .toc .n { color:var(--teal); font-weight:700; margin-right:8px; }
+
+  /* Tables */
+  .tablewrap { overflow-x:auto; margin:18px 0; border:1px solid var(--border); border-radius:8px; box-shadow:var(--shadow); }
+  table { border-collapse:collapse; width:100%; font-size:14.5px; background:var(--surface); }
+  thead th { background:var(--navy); color:#EAF0F7; text-align:left; font-weight:600; padding:11px 14px; white-space:nowrap; }
+  tbody td { padding:10px 14px; border-top:1px solid var(--border); vertical-align:top; }
+  tbody tr:nth-child(even) td { background:var(--surface-2); }
+  td code, th code { white-space:nowrap; }
+
+  /* Status pills */
+  .pill { display:inline-block; font-size:12px; font-weight:700; padding:2px 9px; border-radius:9999px; white-space:nowrap; }
+  .pill.ok { background:var(--ok-bg); color:var(--ok); }
+  .pill.warn { background:var(--warn-bg); color:var(--warn); }
+
+  /* Code */
+  pre { background:var(--code-bg); color:var(--code-text); border-radius:8px; padding:16px 18px; overflow-x:auto; margin:14px 0; border:1px solid rgba(255,255,255,.06); }
+  pre code { font-family:"JetBrains Mono", ui-monospace, "SF Mono", Consolas, "Liberation Mono", monospace; font-size:13.5px; line-height:1.65; }
+  code { font-family:"JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace; }
+  p code, li code, td code { background:var(--code-inline-bg); color:var(--code-inline-text); padding:1.5px 6px; border-radius:5px; font-size:13px; }
+  .cmt { color:#7E93AC; }
+
+  /* File tree */
+  .tree { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:16px 18px; overflow-x:auto; box-shadow:var(--shadow); }
+  .tree pre { background:transparent; color:var(--text); border:0; padding:0; margin:0; }
+  .tree code { color:var(--text); font-size:13px; }
+
+  ul.clean { padding-left:20px; margin:12px 0; }
+  ul.clean li { margin:7px 0; }
+  .checklist { list-style:none; padding:0; margin:12px 0; }
+  .checklist li { padding-left:26px; position:relative; margin:8px 0; }
+  .checklist li::before { content:"☐"; position:absolute; left:0; color:var(--teal); font-weight:700; }
+
+  footer { margin-top:64px; padding-top:22px; border-top:2px solid var(--teal); color:var(--muted); font-size:13.5px; }
+  @media (max-width:640px){ .toc ol{columns:1;} header.masthead h1{font-size:30px;} }
+</style>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow">Playwright · Aastrika · Ekshamata</div>
+    <h1>Ekshamata Web Automation — Project Guide</h1>
+    <p>Everything in the suite: what each file does, every command, how it differs from the Sphere suite, engineering &amp; brand guidelines, the roadmap, and how to ship it to GitHub.</p>
+    <div class="masthead-meta">
+      <span class="chip">https://ekshamata.aastrika.org</span>
+      <span class="chip">10 orgs · 12 role checks</span>
+      <span class="chip">TypeScript · POM</span>
+      <span class="chip gold">Reference v1</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div class="callout info" style="margin-top:32px;">
+    <span class="k">Key platform fact.</span> <code>ekshamata.aastrika.org</code> is a <strong>branded shell that runs on the Sphere instance</strong> — its JS bundle and <code>assets/*</code> config hard-code <code>https://sphere.aastrika.org</code>, so after login the authenticated app lives on the Sphere host. This is by design; the tests account for it.
+  </div>
+
+  <nav class="toc" aria-label="Contents">
+    <ol>
+      <li><a href="#s1"><span class="n">01</span>What this suite does</a></li>
+      <li><a href="#s2"><span class="n">02</span>Project structure</a></li>
+      <li><a href="#s3"><span class="n">03</span>Setup &amp; <code>.env</code></a></li>
+      <li><a href="#s4"><span class="n">04</span>Commands (everything)</a></li>
+      <li><a href="#s5"><span class="n">05</span>Content validator</a></li>
+      <li><a href="#s6"><span class="n">06</span>Competency stepper</a></li>
+      <li><a href="#s7"><span class="n">07</span>Difference vs Sphere</a></li>
+      <li><a href="#s8"><span class="n">08</span>Known issue: submit</a></li>
+      <li><a href="#s9"><span class="n">09</span>Roadmap</a></li>
+      <li><a href="#s10"><span class="n">10</span>Add to GitHub</a></li>
+      <li><a href="#s11"><span class="n">11</span>Quick reference</a></li>
+    </ol>
+  </nav>
+
+  <!-- 1 -->
+  <section id="s1">
+    <h2><span class="num">01</span>What this suite does</h2>
+    <hr class="rule">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Capability</th><th>Spec</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Provision org users (per role) + verify login</td><td><code>tests/orgs/*.spec.ts</code> → <code>orgLoginSuite</code></td><td><span class="pill ok">Working</span></td></tr>
+          <tr><td>Validate homepage type &amp; mapped content per org</td><td><code>tests/org-content.spec.ts</code></td><td><span class="pill ok">Working</span></td></tr>
+          <tr><td>Climb a competency's self-assessments (answer + submit)</td><td><code>tests/competency-stepper.spec.ts</code></td><td><span class="pill ok">Working</span></td></tr>
+          <tr><td>Smoke / single login</td><td><code>tests/smoke.spec.ts</code>, <code>tests/login.spec.ts</code></td><td><span class="pill ok">Working</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section id="s2">
+    <h2><span class="num">02</span>Project structure</h2>
+    <hr class="rule">
+    <div class="tree"><pre><code>EkshamataWebAutomation/
+├─ .env                     <span class="cmt"># Target env + provisioning creds (NOT committed)</span>
+├─ .env.example            <span class="cmt"># Template for .env</span>
+├─ playwright.config.ts    <span class="cmt"># Projects (Chrome, orgs), baseURL, timeouts</span>
+├─ package.json            <span class="cmt"># npm scripts (see §04)</span>
+│
+├─ src/
+│  ├─ api/Ekshamata-api.ts  <span class="cmt"># createUser / assignRole / updateProfile / getOrgChannel</span>
+│  ├─ config/orgs.ts        <span class="cmt"># ORG REGISTRY — key, orgId, designations[], profileFile</span>
+│  ├─ config/profiles/*.json<span class="cmt"># Exact profileDetails per org (10 files)</span>
+│  └─ utils/
+│     ├─ user-factory.ts    <span class="cmt"># createOrgUser() → records to created-users.txt</span>
+│     ├─ user-store.ts      <span class="cmt"># getExistingUser()</span>
+│     └─ answer-key.ts      <span class="cmt"># fetchAnswerKey() → real S3 key + question pool</span>
+│
+├─ tests/
+│  ├─ helpers/
+│  │  ├─ login.ts           <span class="cmt"># loginWithPassword() (+ stale-session guard)</span>
+│  │  ├─ orgLoginSuite.ts   <span class="cmt"># ONE user PER designation role</span>
+│  │  ├─ session.ts         <span class="cmt"># openCompetencyHome()</span>
+│  │  └─ user-lookup.ts     <span class="cmt"># getUserFor(org, designation) — reuse-or-provision</span>
+│  ├─ pages/
+│  │  ├─ competency-home.page.ts   <span class="cmt"># learning-plan cards, expand, Start</span>
+│  │  ├─ my-courses.page.ts        <span class="cmt"># For You / Started / Completed + program cards</span>
+│  │  └─ self-assessment.page.ts   <span class="cmt"># quiz player: per-page answer + submit</span>
+│  ├─ fixtures/org-content-expected.ts <span class="cmt"># expected type + counts per org+role</span>
+│  ├─ orgs/*.spec.ts        <span class="cmt"># BNRC · DMHUP · MP · NHMMADHYA · NHMMP · NHMUP</span>
+│  │                        <span class="cmt">#          · PVTBIHAR · PVTUP · SHSB · SIHFWUP</span>
+│  ├─ org-content.spec.ts   <span class="cmt"># THE content validator (§05)</span>
+│  ├─ competency-stepper.spec.ts   <span class="cmt"># THE competency climb (§06)</span>
+│  ├─ course-complete.spec.ts      <span class="cmt"># ⭐ complete ONE named course, any env</span>
+│  └─ login.spec.ts | smoke.spec.ts
+│
+├─ scripts/
+│  ├─ run-course.mjs        <span class="cmt"># ⭐ complete a whole course, any env (§04)</span>
+│  ├─ compare-env.mjs       <span class="cmt"># ⭐ prod vs staging, side by side (§04)</span>
+│  ├─ run-compare.mjs       <span class="cmt"># interactive picker for the comparison</span>
+│  └─ lib/env-*.mjs         <span class="cmt"># capture · diff · login · report for the above</span>
+├─ config/
+│  ├─ compare-routes.json   <span class="cmt"># features + API endpoints compared</span>
+│  └─ compare-journeys.json <span class="cmt"># flows walked step by step on both envs</span>
+├─ compare-reports/         <span class="cmt"># comparison output (NOT committed)</span>
+├─ created-users.txt        <span class="cmt"># running log of provisioned users (NOT committed)</span>
+├─ last-created-user.json   <span class="cmt"># latest provisioned user (NOT committed)</span>
+└─ email-counters.json      <span class="cmt"># per-prefix sequence counters (NOT committed)</span></code></pre></div>
+
+    <h3>The 10 orgs and their roles</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Key</th><th>Org</th><th>Roles (designations)</th></tr></thead>
+        <tbody>
+          <tr><td><code>BNRC</code></td><td>Bihar Nursing Registration Council</td><td>ANM-Student-Bihar</td></tr>
+          <tr><td><code>DMHUP</code></td><td>Directorate of Medical Health (UP)</td><td>ANM-Outreach-UP</td></tr>
+          <tr><td><code>SHSB</code></td><td>State Health Society Bihar</td><td>ANM-Bihar, <strong>CHO-Bihar</strong></td></tr>
+          <tr><td><code>MP</code></td><td>Madhya Pradesh – NHM</td><td>ANM-MP, <strong>CHO-MP</strong></td></tr>
+          <tr><td><code>SIHFWUP</code></td><td>State Institute of H&amp;FW, UP</td><td>Medical Officer-UP</td></tr>
+          <tr><td><code>PVTBIHAR</code></td><td>Private (Bihar)</td><td>ANM-Bihar</td></tr>
+          <tr><td><code>PVTUP</code></td><td>Private (UP)</td><td>ANM-UP</td></tr>
+          <tr><td><code>NHMUP</code></td><td>NHM (UP)</td><td>ANM-Outreach-UP</td></tr>
+          <tr><td><code>NHMMP</code></td><td>Test NHM Madhya Pradesh</td><td>GNM-Test</td></tr>
+          <tr><td><code>NHMMADHYA</code></td><td>NHM Madhya Pradesh</td><td>ANM/MPW</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section id="s3">
+    <h2><span class="num">03</span>Setup &amp; <code>.env</code></h2>
+    <hr class="rule">
+    <pre><code>cd D:\Automation\EkshamataWebAutomation
+npm install
+npx playwright install chromium
+copy .env.example .env    <span class="cmt"># then fill in the values below</span></code></pre>
+    <pre><code><span class="cmt"># Target — PRODUCTION only (localhost is commented out)</span>
+BASE_URL=https://ekshamata.aastrika.org
+HEADLESS=false
+
+<span class="cmt"># Existing account for tests/login.spec.ts</span>
+EKSHAMATA_EMAIL=SHSB001@yopmail.com
+EKSHAMATA_PASSWORD=Aastrika@123
+
+<span class="cmt"># Sphere provisioning APIs — SESSION creds, they EXPIRE (refresh on 401/419)</span>
+SPHERE_API_TOKEN=&lt;bearer token from DevTools&gt;
+SPHERE_API_COOKIE=connect.sid=&lt;value from DevTools&gt;
+EKSHAMATA_USER_PASSWORD=Aastrika@123   <span class="cmt"># password on every provisioned user</span></code></pre>
+    <div class="callout warn">
+      <span class="k">When provisioning returns 401/419:</span> grab a fresh <code>Authorization</code> bearer + <code>connect.sid</code> cookie from browser DevTools (Network tab) while logged in, and paste into <code>.env</code>.
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section id="s4">
+    <h2><span class="num">04</span>Commands (everything)</h2>
+    <hr class="rule">
+    <p>All from <code>D:\Automation\EkshamataWebAutomation</code>.</p>
+    <h3>npm scripts</h3>
+    <pre><code>npm test                  <span class="cmt"># UI suite (smoke + login), --project=Chrome</span>
+npm run test:all          <span class="cmt"># everything (Chrome + orgs)</span>
+npm run test:orgs         <span class="cmt"># ALL org login suites — one user PER role → txt</span>
+npm run test:bnrc         <span class="cmt"># BNRC only, reusing an existing user</span>
+npm run test:org-content  <span class="cmt"># homepage-type + mapped-content validation (12 checks)</span>
+npm run smoke             <span class="cmt"># smoke.spec.ts</span>
+npm run login             <span class="cmt"># login.spec.ts (existing EKSHAMATA_EMAIL)</span>
+npm run run:stepper       <span class="cmt"># competency-stepper (COMPETENCY env picks which)</span>
+npm run report            <span class="cmt"># open the last HTML report</span></code></pre>
+
+    <h3>⭐ Compare production vs staging (side by side)</h3>
+    <p><code>scripts/compare-env.mjs</code> loads every feature in <code>config/compare-routes.json</code> on <strong>both</strong> environments at the same time, in two browser contexts, and reports what differs — <strong>UI</strong> (screenshots left/right, pixel diff, missing headings/buttons/fields/links, broken images, copy drift), <strong>function</strong> (HTTP status, redirects, blank pages, console + uncaught JS errors, failing requests, settle time, build hash) and <strong>data</strong> (API parity, and which courses exist on one environment but not the other). Output: a branded side-by-side HTML report + JSON summary in <code>compare-reports/</code>. It <strong>exits 1 when anything blocking is found</strong>, so it can gate a release.</p>
+    <pre><code><span class="cmt"># ⭐ signed in on both sides with the same production-created account</span>
+npm run compare:all
+
+<span class="cmt"># interactive: which two envs → signed in? → WHICH created account → features → options</span>
+npm run compare
+
+<span class="cmt"># any flag skips the prompts entirely</span>
+npm run compare:public                 <span class="cmt"># public pages only, no login</span>
+npm run compare:users                  <span class="cmt"># list the accounts it can sign in with</span>
+npm run compare:journeys               <span class="cmt"># every journey, step by step, signed in</span>
+npm run compare:login                  <span class="cmt"># just the login journey (public)</span>
+npm run compare:local                  <span class="cmt"># production vs http://localhost:3000</span>
+
+<span class="cmt"># pick the account (both sides use the SAME one)</span>
+npm run compare -- --auth --org SHSB
+npm run compare -- --auth --user SHSB-CHO035@yopmail.com
+
+<span class="cmt"># scoping and tuning</span>
+npm run compare -- --auth --only competency,my-courses   <span class="cmt"># match route id or name</span>
+npm run compare -- --auth --route /app/user/my_courses   <span class="cmt"># a one-off path</span>
+npm run compare -- --auth --headed                       <span class="cmt"># watch it run</span>
+npm run compare -- --auth --threshold 1.5                <span class="cmt"># ignore visual diffs under 1.5%</span>
+npm run compare -- --auth --no-catalogue                 <span class="cmt"># skip catalogue parity (faster)</span>
+npm run compare -- --auth --refresh                      <span class="cmt"># re-login + re-fetch the catalogue</span>
+npm run compare -- --auth --a https://ekshamata.aastrika.org --b https://ekshamata-staging.aastrika.org</code></pre>
+    <p><strong>Which account signs in.</strong> Users are provisioned on <strong>production</strong>, so <strong>both</strong> sides sign in with the same production-created account — the comparison is then environment vs environment, not person vs person. Order: <code>PROD_EMAIL</code>/<code>STAGING_EMAIL</code> (per env) → <code>COMPARE_EMAIL</code> → the accounts in <code>created-users.txt</code> (<code>--user</code> / <code>--org</code>, else newest first) → <code>EKSHAMATA_EMAIL</code>. Because provisioning runs append to that ledger live, an account created in the last five minutes may still be half-made: those are tried <em>after</em> the settled ones, and the run moves down the list until a login succeeds. Set <code>STAGING_EMAIL</code>/<code>STAGING_PASSWORD</code> to sign the right-hand side in as a staging-native account instead.</p>
+    <p>Add a feature by adding an entry to <code>config/compare-routes.json</code>, or a flow to <code>config/compare-journeys.json</code> — no code change. Steps are read-only by design; anything that writes real data is marked <code>"writes": true</code> and is skipped unless the run is started with <code>--allow-writes</code>.</p>
+
+    <h3>Create users (provision)</h3>
+    <pre><code><span class="cmt"># All orgs, every role (SHSB→ANM-Bihar+CHO-Bihar, MP→ANM-MP+CHO-MP, …)</span>
+npm run test:orgs
+
+<span class="cmt"># A single org (creates every role of that org)</span>
+npx playwright test tests/orgs/SHSB.spec.ts --project=orgs --headed
+npx playwright test tests/orgs/MP.spec.ts   --project=orgs --headed
+
+<span class="cmt"># Reuse the latest existing users instead of provisioning fresh</span>
+cross-env USE_EXISTING_USER=1 npm run test:orgs</code></pre>
+    <p>Credentials append to <strong><code>created-users.txt</code></strong>: <code>timestamp | ORG | designation | email | password | userId=…</code></p>
+
+    <h3>Validate org content</h3>
+    <pre><code>npm run test:org-content                                   <span class="cmt"># all 12 org+role checks</span>
+npx playwright test tests/org-content.spec.ts --grep "MP|SHSB" --project=Chrome --headed
+cross-env PROVISION=1 npm run test:org-content             <span class="cmt"># force-mint fresh users</span></code></pre>
+
+    <h3>Competency stepper</h3>
+    <pre><code>$env:COMPETENCY="Normal delivery"; $env:LEVELS="5"; npm run run:stepper</code></pre>
+
+    <h3>⭐ Complete a whole course</h3>
+    <p><code>tests/course-complete.spec.ts</code> opens one course and finishes <strong>every</strong> module — PDFs, videos, content pages and in-course assessments — through the shared <code>CoursePlayer</code> (the same player the competency runner drives), answering assessments from the real, token-free answer key. The course name is resolved to a <code>do_id</code> against the <strong>live catalogue of whichever environment <code>BASE_URL</code> points at</strong>, so the same command works on production and staging even though the two hold different course sets (438 vs 393 today).</p>
+    <pre><code><span class="cmt"># interactive: environment → course → learner → headed</span>
+npm run run:course
+
+<span class="cmt"># a named course, per environment</span>
+$env:COURSE_NAME="Administration of drugs through IV"; npm run run:course:prod
+$env:COURSE_NAME="Administration of drugs through IV"; npm run run:course:stage
+
+<span class="cmt"># what is there to run?  (the two environments differ)</span>
+npm run courses:list
+npm run courses:list:stage
+
+<span class="cmt"># no prompts</span>
+npm run run:course -- --course "Administration of drugs through IV"
+npm run run:course -- --stage --course "Administration of drugs through IV" --headless</code></pre>
+    <p><strong>Inputs.</strong> <code>COURSE_NAME</code> (exact title first, then substring — an ambiguous name lists the matches and stops) or <code>COURSE_ID</code> to skip the lookup. <code>MAX_MODULES</code> caps the module count (60), <code>COURSE_TIMEOUT_MIN</code> the run (90 min).</p>
+    <p><strong>Which learner.</strong> <code>COURSE_EMAIL</code>/<code>COURSE_PASSWORD</code> → <code>EKSHAMATA_EMAIL</code>/<code>EKSHAMATA_PASSWORD</code> from <code>.env</code> → a user for <code>$env:ORG</code>. The <code>.env</code> account is the default because it exists on <strong>both</strong> backends; accounts created through the API on production do not always sign in on staging (see <a href="#s7">§07</a>).</p>
+
+    <h3>Useful flags</h3>
+    <pre><code>--headed            <span class="cmt"># watch it run</span>
+--debug             <span class="cmt"># Playwright Inspector</span>
+--grep "pattern"    <span class="cmt"># run tests whose title matches</span>
+--project=Chrome    <span class="cmt"># UI suite   |   --project=orgs   # org login suites</span>
+--list              <span class="cmt"># list tests without running (fast compile check)</span>
+npx playwright show-report</code></pre>
+  </section>
+
+  <!-- 5 -->
+  <section id="s5">
+    <h2><span class="num">05</span><code>org-content.spec.ts</code> — the content validator</h2>
+    <hr class="rule">
+    <p>Per <strong>org + role</strong>, logs in and asserts the correct homepage renders. Source of truth: <code>tests/fixtures/org-content-expected.ts</code>.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Type</th><th>Orgs</th><th>Assertion</th></tr></thead>
+        <tbody>
+          <tr><td><code>competency</code></td><td>BNRC, DMHUP, PVTBIHAR, SHSB/ANM-Bihar</td><td>Learning Plan on home <strong>+ For You = 73</strong></td></tr>
+          <tr><td><code>courses</code></td><td>SIHFWUP</td><td>My Courses ▸ For You = 1</td></tr>
+          <tr><td><code>programs</code></td><td>MP (4), NHMMP (2)</td><td>Home PROGRAMS program-card count</td></tr>
+          <tr><td><code>none</code></td><td>NHMUP</td><td>For You = 0</td></tr>
+          <tr><td><code>competency</code> (plan only)</td><td>PVTUP</td><td>Learning Plan on home</td></tr>
+          <tr><td><code>review</code> (log actual)</td><td>NHMMADHYA, SHSB/CHO-Bihar</td><td>Loose check; prints real value</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>To add course-title checks, set <code>names: ['Course Title', …]</code> on a role in the fixture.</p>
+  </section>
+
+  <!-- 6 -->
+  <section id="s6">
+    <h2><span class="num">06</span><code>competency-stepper.spec.ts</code></h2>
+    <hr class="rule">
+    <p><code>$env:COMPETENCY="&lt;name&gt;"</code> → finds the competency card, expands it, opens “Start Self Assessment”, and for each level: fetches the real S3 answer key, answers <strong>one question per page</strong> (match on-screen question → pool → correct option), then submits and records the result. End-to-end working — see §08.</p>
+  </section>
+
+  <!-- 7 -->
+  <section id="s7">
+    <h2><span class="num">07</span>How this differs from the Sphere suite</h2>
+    <hr class="rule">
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Aspect</th><th>Ekshamata (this)</th><th>Sphere (<code>SphereWebAutomation</code>)</th></tr></thead>
+        <tbody>
+          <tr><td>Auth model</td><td>Provision users via API + <strong>UI password login</strong></td><td>Standard creds, or <strong>CDP</strong> attach on localhost</td></tr>
+          <tr><td>Local runs</td><td>Prod only (branded shell → sphere host)</td><td><strong>CDP</strong> attach to Chrome/Edge on <code>:9222</code></td></tr>
+          <tr><td>Answer key source</td><td>Questionset hierarchy → S3, <strong>needs bearer token</strong> (expires)</td><td><strong>Content hierarchy → S3, org headers only</strong></td></tr>
+          <tr><td>Quiz player DOM</td><td><code>input.mdc-radio__native-control</code> + <code>button.btn-active</code></td><td><code>mat-radio-group</code> / <code>mat-radio-button</code></td></tr>
+          <tr><td>Scope</td><td><strong>Multi-org</strong> (10 orgs, roles, content mapping)</td><td><strong>Single competency</strong> by name</td></tr>
+          <tr><td>Submit</td><td><span class="pill ok">Works</span> (per-page answer + submit)</td><td><span class="pill ok">Works</span> (enrolled standard user)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Sphere quick reference</h3>
+    <pre><code>cd D:\Automation\SphereWebAutomation
+.\run-competency.ps1 "Care of the newborn"          <span class="cmt"># prod, standard creds</span>
+npm run cdp:edge                                     <span class="cmt"># launch clean CDP Edge (:9222)</span>
+.\run-competency.ps1 "Care of the newborn" -Local    <span class="cmt"># localhost over CDP</span></code></pre>
+  </section>
+
+  <!-- 8 -->
+  <section id="s8">
+    <h2><span class="num">08</span>Competency stepper — now working</h2>
+    <hr class="rule">
+    <div class="callout info">
+      <span class="k">End-to-end.</span> The stepper now finds the competency, opens each level, answers every question correctly, submits, and reaches the result — for all levels of the chosen competency.
+    </div>
+    <p><strong>What made it work:</strong></p>
+    <ul class="clean">
+      <li><strong>Home card expand</strong> — the expand toggle is a <code>&lt;span class="btn-expand"&gt;</code> (not a button); matching by class reveals “Start Self Assessment”.</li>
+      <li><strong>Per-page answering</strong> — the web player paginates one question per page, so the engine answers the on-screen question, clicks Next, and repeats — instead of trying to answer the whole DOM at once.</li>
+      <li><strong>Real S3 answer key</strong> — questions are matched against the real answer pool from the S3 quiz artifact (via the hierarchy), so the correct option is picked by text every time.</li>
+      <li><strong>Submit + confirm handling</strong> — the last page's <code>Submit</code> (distinct from the per-page <code>Next</code>) is clicked and any confirmation is dismissed, so the result is recorded.</li>
+    </ul>
+    <div class="callout info">
+      <span class="k">Run it:</span> <code>$env:COMPETENCY="Normal delivery"; npm run run:stepper</code>
+    </div>
+  </section>
+
+  <!-- 9 -->
+  <section id="s9">
+    <h2><span class="num">09</span>Roadmap — to a production-grade platform</h2>
+    <hr class="rule">
+    <h3>Reliability</h3>
+    <ul class="checklist">
+      <li>Replace fixed <code>waitForTimeout</code> calls with web-first assertions / <code>expect.poll</code>.</li>
+      <li>Add <code>retries: 1</code> in CI; <code>trace: 'on-first-retry'</code>, video/screenshot on failure.</li>
+      <li>Centralize selectors; add <code>data-testid</code>s where the app allows.</li>
+    </ul>
+    <h3>Auth &amp; data</h3>
+    <ul class="checklist">
+      <li>Drop the expiring bearer token: port Sphere's org-header / no-auth key fetch.</li>
+      <li>Automate creds refresh, or move to a service account / longer-lived token.</li>
+      <li>Data hygiene — provisioning creates real prod users each run; add cleanup or a test tenant.</li>
+    </ul>
+    <h3>Coverage &amp; reporting</h3>
+    <ul class="checklist">
+      <li>Branded HTML reporter like the Sphere suite.</li>
+      <li>Excel / email report hooks for scheduled runs.</li>
+      <li>Cross-browser (Chromium + WebKit) for read-only validations.</li>
+      <li>Tag suites (<code>@smoke</code>, <code>@content</code>, <code>@provision</code>) for selective CI.</li>
+    </ul>
+    <h3>Engineering</h3>
+    <ul class="checklist">
+      <li>ESLint + Prettier + <code>tsc --noEmit</code> gate; TypeScript <code>strict</code>.</li>
+      <li>Lock the <code>review</code> expected values (NHMMADHYA For You, SHSB/CHO-Bihar, MP/CHO-MP).</li>
+      <li>Parallelize the read-only content checks (they're independent).</li>
+    </ul>
+  </section>
+
+  <!-- 10 -->
+  <section id="s10">
+    <h2><span class="num">10</span>Add to GitHub (future)</h2>
+    <hr class="rule">
+    <h3>One-time</h3>
+    <pre><code>cd D:\Automation\EkshamataWebAutomation
+git init
+git branch -M main</code></pre>
+    <h3><code>.gitignore</code> — never commit secrets or generated data</h3>
+    <pre><code>node_modules/
+/.env
+/created-users.txt
+/last-created-user.json
+/email-counters.json
+/playwright-report/
+/blob-reports/
+/test-results/
+/.auth/
+*.log</code></pre>
+    <div class="callout info">Keep <code>.env.example</code> (committed) as the template; keep <code>.env</code> <strong>out</strong> of git.</div>
+    <h3>First commit &amp; push</h3>
+    <pre><code>git add .
+git commit -m "Ekshamata web automation: org provisioning, content validation, competency stepper"
+gh repo create ekshamata-web-automation --private --source . --remote origin
+git push -u origin main
+<span class="cmt"># without gh: create the empty repo on github.com, then:</span>
+<span class="cmt"># git remote add origin https://github.com/&lt;org&gt;/ekshamata-web-automation.git</span>
+<span class="cmt"># git push -u origin main</span></code></pre>
+    <h3>CI — <code>.github/workflows/e2e.yml</code></h3>
+    <pre><code>name: e2e
+on: [workflow_dispatch, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:org-content
+        env:
+          BASE_URL: https://ekshamata.aastrika.org
+          HEADLESS: 'true'
+          SPHERE_API_TOKEN: ${{ secrets.SPHERE_API_TOKEN }}
+          SPHERE_API_COOKIE: ${{ secrets.SPHERE_API_COOKIE }}
+          EKSHAMATA_USER_PASSWORD: ${{ secrets.EKSHAMATA_USER_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: playwright-report, path: playwright-report/ }</code></pre>
+    <p>Store <code>SPHERE_API_TOKEN</code>, <code>SPHERE_API_COOKIE</code>, <code>EKSHAMATA_USER_PASSWORD</code> as <strong>GitHub Actions secrets</strong> (Settings → Secrets and variables → Actions). Enable <strong>branch protection</strong> on <code>main</code>.</p>
+  </section>
+
+  <!-- 11 -->
+  <section id="s11">
+    <h2><span class="num">11</span>Quick reference</h2>
+    <hr class="rule">
+    <pre><code><span class="cmt"># Complete a whole course (prod or stage)</span>
+$env:COURSE_NAME="Administration of drugs through IV"; npm run run:course:prod
+
+<span class="cmt"># Compare production vs staging, signed in, and open the report</span>
+npm run compare:all
+
+<span class="cmt"># Create all org users (every role) → created-users.txt</span>
+npm run test:orgs
+
+<span class="cmt"># Validate homepage type + mapped content for all orgs</span>
+npm run test:org-content
+
+<span class="cmt"># One org, both roles</span>
+npx playwright test tests/orgs/SHSB.spec.ts --project=orgs --headed
+
+<span class="cmt"># Competency climb</span>
+$env:COMPETENCY="Normal delivery"; npm run run:stepper
+
+<span class="cmt"># Open last report</span>
+npx playwright show-report</code></pre>
+  </section>
+
+  <footer>
+    Ekshamata Web Automation · Playwright + TypeScript · Built for Aastrika.
+  </footer>
+</main>

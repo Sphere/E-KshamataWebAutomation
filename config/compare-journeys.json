@@ -1,0 +1,13 @@
+{
+  "_comment": [
+    "JOURNEYS — step-by-step flows walked on both environments — are NOT used for",
+    "Ekshamata. The comparison is the four signed-in pages in compare-routes.json",
+    "(Homepage · My Courses · Account · Competency), run as one org's paired",
+    "accounts. The signup wizard in particular is deliberately not walked: it sends",
+    "real OTPs and creates real accounts, and it is not what a release breaks.",
+    "",
+    "The machinery still exists (scripts/lib/journey.mjs). To use it, add entries",
+    "below and pass --journey <id>. Nothing runs unless a journey is named."
+  ],
+  "journeys": []
+}

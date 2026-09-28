@@ -1,0 +1,26 @@
+node_modules/
+playwright-report/
+test-results/
+blob-report/
+.env
+
+# Test artefacts / run records
+created-users.txt
+last-created-user.json
+email-counters.json
+
+# ── added: generated run output (thousands of files, all reproducible) ──
+test-reports/
+compare-reports/
+brand-reports/
+blob-reports/
+.auth/
+.cache/
+playwright/.cache/
+
+# Provisioned-account credential dumps written by scripts/create-users.ts.
+credentials_*.csv
+
+.env.local
+.env.*
+!.env.example

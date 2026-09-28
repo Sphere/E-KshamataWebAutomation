@@ -1,0 +1,88 @@
+{
+  "_comment": [
+    "Feature inventory for scripts/compare-env.mjs (npm run compare).",
+    "Every entry is loaded on BOTH environments and compared side by side.",
+    "",
+    "FOUR signed-in pages, deliberately — Homepage, My Courses, Account and",
+    "Competency. Public pages, the signup wizard and step-by-step journeys are NOT",
+    "compared: a learner's own pages are where a release regression shows up.",
+    "",
+    "Both sides sign in as the SAME ORG's user. Production and staging are separate",
+    "backends, so each has its own account and they are paired by org:",
+    "    npm run create:pair -- BNRC            one account on each environment",
+    "    npm run compare:bnrc                   compare as that pair",
+    "    npm run compare -- --auth --org SHSB   any other org",
+    "",
+    "  id     — short slug, used in filenames and the report anchor",
+    "  name   — the feature label shown in the report",
+    "  path   — path appended to each environment's base URL",
+    "  auth   — true = only captured when the run is authenticated (--auth)",
+    "  wait   — extra settle time in ms after networkidle (slow widgets)",
+    "  note   — one line shown in the report saying what this entry covers",
+    "  steps  — actions to walk INTO the screen before capturing. Read-only by",
+    "           design: click and type to REACH a screen, never submit anything.",
+    "             { \"click\": \"My Certificates\" }  button name, visible text, or css/xpath",
+    "             { \"fill\": \"<selector>\", \"value\": \"…\" }",
+    "             { \"waitFor\": \"Your Learning Plan\" }",
+    "             { \"wait\": 1200 }",
+    "  skip   — set true to park a route without deleting it",
+    "  ignore — regex patterns for known third-party noise; matching console errors",
+    "           and failing requests are dropped before the diff."
+  ],
+  "routes": [
+    {
+      "id": "home",
+      "name": "Homepage",
+      "path": "/page/home",
+      "auth": true,
+      "wait": 2500,
+      "note": "The signed-in home: \"Your Learning Plan (N)\" competency cards with their level steppers, plus the course rails."
+    },
+    {
+      "id": "my-courses",
+      "name": "My Courses — For You",
+      "path": "/app/user/my_courses",
+      "auth": true,
+      "wait": 2000,
+      "note": "Captured on the FOR YOU tab, not the default Started tab: Started is empty for a fresh comparison account on both sides, so the old capture compared two blank panels. For You carries the org mapping, which is what differs between environments.",
+      "steps": [
+        {
+          "click": "re=for you|आपके लिए|आपके लिये",
+          "wait": 3000
+        }
+      ]
+    },
+    {
+      "id": "account",
+      "name": "Account page",
+      "path": "/app/profile-view",
+      "auth": true,
+      "wait": 4000,
+      "stableMs": 1500,
+      "stableTimeout": 25000,
+      "note": "Account → Personal Details, with the organisation / academic / language / certificate tabs alongside. Nothing is saved."
+    },
+    {
+      "id": "competency",
+      "name": "Competency tab",
+      "path": "/app/user/competency",
+      "auth": true,
+      "wait": 2500,
+      "note": "The competency passbook as it lands — levels are not opened."
+    }
+  ],
+  "api": [],
+  "ignore": {
+    "console": [
+      "api\\.freecustomer\\.in",
+      "connect\\.facebook\\.net",
+      "Meta pixel",
+      "googletagmanager|google-analytics"
+    ],
+    "requests": [
+      "api\\.freecustomer\\.in",
+      "connect\\.facebook\\.net",
+      "googletagmanager|google-analytics"
+    ]
+  }
+}

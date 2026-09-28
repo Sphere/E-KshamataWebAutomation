@@ -1,0 +1,62 @@
+{
+  "preferences": {
+    "language": "hi"
+  },
+  "profileReq": {
+    "skills": {
+      "certificateDetails": "",
+      "additionalSkills": ""
+    },
+    "professionalDetails": [
+      {
+        "profession": "GNM",
+        "qualification": "GNM",
+        "orgType": "Government",
+        "responsibilities": "",
+        "name": "Test MP ",
+        "professionOtherSpecify": "",
+        "designation": "GNM-Test",
+        "completePostalAddress": "",
+        "doj": "",
+        "additionalAttributes": {},
+        "instituteName": "NA"
+      }
+    ],
+    "employmentDetails": {
+      "allotmentYearOfService": "",
+      "payType": "",
+      "civilListNo": "",
+      "service": "",
+      "dojOfService": "",
+      "pinCode": "",
+      "officialPostalAddress": "",
+      "cadre": "",
+      "employeeCode": ""
+    },
+    "academics": [
+      {
+        "nameOfQualification": "",
+        "yearOfPassing": "",
+        "nameOfInstitute": "",
+        "type": "GRADUATE"
+      }
+    ],
+    "personalDetails": {
+      "firstname": "Aastrika",
+      "profileLocation": "Ekshamata/language-update",
+      "postalAddress": "India,MP,MP",
+      "regNurseRegMidwifeNumber": "NA",
+      "surname": "Account",
+      "dob": "25/2/1971",
+      "officialEmail": "",
+      "personalEmail": ""
+    },
+    "id": "",
+    "interests": {
+      "hobbies": "",
+      "professional": ""
+    },
+    "userId": ""
+  },
+  "mandatoryFieldsExists": false
+}
