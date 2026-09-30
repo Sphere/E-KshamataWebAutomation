@@ -22,7 +22,7 @@ test.describe('Ekshamata — click-by-click journey', () => {
       const login = page.locator('button.login-btn')
         .or(page.getByRole('button', { name: /^log\s?in$/i })).first();
       // Clear a stale session so we land on the anonymous login.
-      if (!(await login.isVisible({ timeout: 5_000 }).catch(() => false))) {
+      if (!(await login.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true, () => false).catch(() => false))) {
         await page.context().clearCookies();
         await page.goto(`${BASE}/public/home`);
         await page.waitForLoadState('networkidle').catch(() => {});
@@ -38,7 +38,10 @@ test.describe('Ekshamata — click-by-click journey', () => {
     });
 
     await test.step('Enter email', async () => {
-      await page.locator('#emailOrMobile').first().fill(EMAIL);
+      // Prod's field has id=emailOrMobile; staging's build does not — find it by its label there.
+      await page.locator('#emailOrMobile')
+        .or(page.getByPlaceholder(/phone number|email/i))
+        .or(page.getByLabel(/phone number|email/i)).first().fill(EMAIL);
     });
 
     await test.step('Enter password', async () => {
@@ -46,40 +49,42 @@ test.describe('Ekshamata — click-by-click journey', () => {
     });
 
     await test.step('Click "Login" (submit)', async () => {
-      await page.locator('#login-username-password').first().click();
+      // Prod's submit has id=login-username-password; staging's is just the "Login" button.
+      await page.locator('#login-username-password')
+        .or(page.getByRole('button', { name: /^s*logs?ins*$/i })).first().click();
       await page.waitForURL((u) => !/\/public\/login/.test(u.toString()), { timeout: 30_000 });
     });
 
     await test.step('Accept Terms & Conditions (if shown)', async () => {
       const b = page.getByRole('button', { name: /accept|agree|proceed|continue|submit/i }).first();
-      if (await b.isVisible({ timeout: 2_500 }).catch(() => false)) await b.click().catch(() => {});
+      if (await b.waitFor({ state: 'visible', timeout: 2_500 }).then(() => true, () => false)) await b.click().catch(() => {});
     });
 
     await test.step('Verify authenticated home', async () => {
       await page.goto(`${BASE}/page/home`);
       await page.waitForLoadState('networkidle').catch(() => {});
-      const nav = page.getByRole('button', { name: /^my courses$/i })
-        .or(page.getByText(/^my courses$/i)).first();
+      const nav = page.getByRole('button', { name: /^(my courses|मेरे पाठ्यक्रम)$/i })
+        .or(page.getByText(/^(my courses|मेरे पाठ्यक्रम)$/i)).first();
       await expect(nav, 'authenticated nav visible').toBeVisible({ timeout: 20_000 });
     });
 
     await test.step('Click "My Courses"', async () => {
-      await page.getByRole('button', { name: /^my courses$/i }).or(page.getByText(/^my courses$/i)).first().click();
+      await page.getByRole('button', { name: /^(my courses|मेरे पाठ्यक्रम)$/i }).or(page.getByText(/^(my courses|मेरे पाठ्यक्रम)$/i)).first().click();
       await page.waitForTimeout(2_500);
     });
 
     await test.step('Click "Competency"', async () => {
-      await page.getByRole('button', { name: /^competency$/i }).or(page.getByText(/^competency$/i)).first().click().catch(() => {});
+      await page.getByRole('button', { name: /^(competency|योग्यता)$/i }).or(page.getByText(/^(competency|योग्यता)$/i)).first().click().catch(() => {});
       await page.waitForTimeout(2_500);
     });
 
     await test.step('Click "Account"', async () => {
-      await page.getByRole('button', { name: /^account$/i }).or(page.getByText(/^account$/i)).first().click().catch(() => {});
+      await page.getByRole('button', { name: /^(account|खाता)$/i }).or(page.getByText(/^(account|खाता)$/i)).first().click().catch(() => {});
       await page.waitForTimeout(2_500);
     });
 
     await test.step('Click "Home"', async () => {
-      await page.getByRole('button', { name: /^home$/i }).or(page.getByText(/^home$/i)).first().click().catch(() => {});
+      await page.getByRole('button', { name: /^(home|होम)$/i }).or(page.getByText(/^(home|होम)$/i)).first().click().catch(() => {});
       await page.waitForTimeout(1_500);
     });
   });

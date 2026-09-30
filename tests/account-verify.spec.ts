@@ -31,7 +31,7 @@ test.describe(`Account page${ROLE ? ` — ${ROLE}` : ''}`, () => {
     });
 
     await test.step('Open the Account tab', async () => {
-      await page.getByRole('button', { name: /^account$/i }).or(page.getByText(/^account$/i)).first().click();
+      await page.getByRole('button', { name: /^(account|खाता)$/i }).or(page.getByText(/^(account|खाता)$/i)).first().click();
       await page.waitForLoadState('networkidle').catch(() => {});
       await page.waitForTimeout(3_000);
       await expect(page, 'lands on the profile/account view').toHaveURL(/\/app\/(profile-view|account)/i);
@@ -67,7 +67,7 @@ test.describe(`Account page${ROLE ? ` — ${ROLE}` : ''}`, () => {
       // close without changing (Escape / Cancel / back) — verifying it works, not switching
       await page.keyboard.press('Escape').catch(() => {});
       const cancel = page.getByRole('button', { name: /cancel|close|back/i }).first();
-      if (await cancel.isVisible({ timeout: 1_500 }).catch(() => false)) await cancel.click().catch(() => {});
+      if (await cancel.waitFor({ state: 'visible', timeout: 1_500 }).then(() => true, () => false).catch(() => false)) await cancel.click().catch(() => {});
       await page.waitForTimeout(1_000);
     });
 

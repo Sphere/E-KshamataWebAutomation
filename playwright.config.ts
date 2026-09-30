@@ -24,6 +24,9 @@ export default defineConfig({
     ['./reporters/excel-reporter.ts'],      // detailed Excel → test-reports/
     ['./reporters/run-report.ts'],          // full HTML + PDF (every step/log) → test-reports/run-reports/
     ['html', { outputFolder: 'playwright-report', open: 'never' }],
+    // JSON_OUT: a machine-readable result file on top of the reporters above —
+    // the daily CI workflow's report job reads it to build one combined report.
+    ...(process.env.JSON_OUT ? [['json', { outputFile: process.env.JSON_OUT }] as ['json', { outputFile: string }]] : []),
   ],
 
   // ── Browser/page defaults ──────────────────────────────────────
@@ -31,7 +34,8 @@ export default defineConfig({
     // Localhost by default (local Ekshamata web dev server). Point at
     // https://ekshamata.aastrika.org via .env to run against the live portal.
     baseURL: process.env.BASE_URL ?? 'https://ekshamata.aastrika.org',
-    headless: process.env.HEADLESS === 'true',
+    // CI machines (GitHub sets CI=true) have no screen, so they are always headless.
+    headless: process.env.HEADLESS === 'true' || !!process.env.CI,
     // viewport:null lets the page fill the real (maximized) window instead of a
     // fixed 1280×800 box — pairs with --start-maximized below for full screen.
     viewport: null,

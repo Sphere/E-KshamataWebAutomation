@@ -1,0 +1,218 @@
+name: Daily Prod vs Staging (e-Kshamata)
+
+# Once a day, side by side on separate machines:
+#   compare            signed-in pages on production vs staging (scripts/compare-env.mjs)
+#   daily-journey      on EACH environment: create a brand-new BNRC user through the
+#                      provisioning API, then run the web suite signed in as that user
+#   daily-orgs         the per-org suites (tests/orgs/) on each environment
+#   daily-report       waits for all of them and builds ONE report; its headline
+#                      results are published as annotations, so they appear in
+#                      GitHub's own "workflow run" notification email
+#
+# Production and staging are separate backends, so each environment gets its own
+# user. BNRC users get the English interface; some orgs default to Hindi, which
+# the English-labelled specs don't read.
+on:
+  schedule:
+    - cron: '30 3 * * *' # 03:30 UTC = 09:00 IST, daily (GitHub may delay a few min)
+  workflow_dispatch: {}   # "Run workflow" button in the Actions tab
+
+concurrency:
+  group: ekshamata-daily
+  cancel-in-progress: true
+
+jobs:
+  # Every e-Kshamata page worth comparing is behind login, so this signs in with a
+  # BNRC user on EACH side (--org BNRC creates the pair when it needs one — hence
+  # the provisioning tokens).
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SPHERE_API_TOKEN: ${{ secrets.SPHERE_API_TOKEN }}
+      SPHERE_STAGING_API_TOKEN: ${{ secrets.SPHERE_STAGING_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      # compare-env.mjs exits 1 when it finds BLOCKING differences as well as when
+      # it crashes; the JSON report is written only after a complete run, so its
+      # presence is the real "did the comparison run" signal.
+      - name: Compare signed-in pages (production vs staging)
+        run: |
+          set +e
+          node scripts/compare-env.mjs --auth --org BNRC \
+            --a https://ekshamata.aastrika.org \
+            --b https://ekshamata-staging.aastrika.org
+          if ! ls compare-reports/compare_production_vs_staging_*.json >/dev/null 2>&1; then
+            echo "::error::Comparison did not complete — no JSON report was written."
+            exit 1
+          fi
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: env-compare-report-${{ github.run_number }}
+          path: |
+            compare-reports/compare_production_vs_staging_*
+            created-users.txt
+          retention-days: 90
+
+  # One brand-new user per environment, then the suite as that user. The matrix
+  # runs this twice (production + staging) at the same time.
+  daily-journey:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false   # a failure on one environment doesn't cancel the other
+      matrix:
+        include:
+          - env: production
+            url: https://ekshamata.aastrika.org
+          - env: staging
+            url: https://ekshamata-staging.aastrika.org
+    name: daily-journey (${{ matrix.env }})
+    env:
+      BASE_URL: ${{ matrix.url }}
+      CREATE_ORG: BNRC
+      # Provisioning API tokens (api_admin bearer). Production also accepts the
+      # bearer alone, so no expiring session cookie is needed.
+      SPHERE_API_TOKEN: ${{ secrets.SPHERE_API_TOKEN }}
+      SPHERE_STAGING_API_TOKEN: ${{ secrets.SPHERE_STAGING_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: Create a new user on ${{ matrix.env }} (and prove it can log in)
+        id: create
+        env:
+          JSON_OUT: test-reports/results-create-user.json
+        run: npx playwright test tests/create-env-user.spec.ts --project=Chrome
+
+      # created-users.txt gets one line per account:
+      #   "ISO | ORG | role | email | password | userId | env=<host>"
+      # Take the newest line for THIS environment and hand it to the next step.
+      - name: Use that user for the suite
+        if: ${{ steps.create.outcome == 'success' }}
+        run: |
+          host=$(node -e "console.log(new URL(process.env.BASE_URL).hostname)")
+          line=$(grep " | env=${host}$" created-users.txt | tail -1)
+          email=$(echo "$line" | awk -F' [|] ' '{print $4}')
+          password=$(echo "$line" | awk -F' [|] ' '{print $5}')
+          echo "::add-mask::$password"
+          echo "Signed in as $email for the suite"
+          echo "EKSHAMATA_EMAIL=$email" >> "$GITHUB_ENV"
+          echo "EKSHAMATA_PASSWORD=$password" >> "$GITHUB_ENV"
+
+      - name: Web suite as the new user
+        if: ${{ !cancelled() && steps.create.outcome == 'success' }}
+        env:
+          JSON_OUT: test-reports/results.json
+        run: >
+          npx playwright test
+          tests/smoke.spec.ts tests/login.spec.ts tests/account-verify.spec.ts
+          tests/ekshamata-clicks.spec.ts tests/org-content.spec.ts
+          --project=Chrome
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-journey-${{ matrix.env }}-${{ github.run_number }}
+          path: |
+            brand-reports/
+            playwright-report/
+            test-reports/
+            created-users.txt
+          retention-days: 90
+
+  # The per-org suites (tests/orgs/: BNRC, DMHUP, MP, NHMMADHYA, NHMMP, NHMUP,
+  # PVTBIHAR, PVTUP, SHSB, SIHFWUP): each creates a user for its org and checks
+  # it signs in to the right home. Both environments, side by side.
+  daily-orgs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - env: production
+            url: https://ekshamata.aastrika.org
+          - env: staging
+            url: https://ekshamata-staging.aastrika.org
+    name: daily-orgs (${{ matrix.env }})
+    env:
+      BASE_URL: ${{ matrix.url }}
+      JSON_OUT: test-reports/results.json
+      SPHERE_API_TOKEN: ${{ secrets.SPHERE_API_TOKEN }}
+      SPHERE_STAGING_API_TOKEN: ${{ secrets.SPHERE_STAGING_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Per-org suites on ${{ matrix.env }}
+        run: npx playwright test --project=orgs
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-orgs-${{ matrix.env }}-${{ github.run_number }}
+          path: |
+            brand-reports/
+            playwright-report/
+            test-reports/
+            created-users.txt
+          retention-days: 90
+
+  # ONE report for the whole run. Waits for every job (even failed ones), reads
+  # their artifacts and builds daily-summary.html. The headline results become
+  # annotations, which GitHub's own notification email lists — no SMTP needed.
+  daily-report:
+    needs: [compare, daily-journey, daily-orgs]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+
+      - name: Download every job's reports
+        uses: actions/download-artifact@v4
+        with:
+          path: all-reports
+          pattern: '*-${{ github.run_number }}'
+
+      - name: Build the report
+        env:
+          JOBS: ${{ toJSON(needs) }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: >
+          node scripts/daily-summary.mjs
+          --title e-Kshamata
+          --dir all-reports
+          --out daily-summary
+          --run-number ${{ github.run_number }}
+          --run-url "$RUN_URL"
+          --jobs "$JOBS"
+
+      - name: Show it on the run's Summary page
+        if: always()
+        run: cat daily-summary/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-summary-${{ github.run_number }}
+          path: daily-summary/
+          retention-days: 90
