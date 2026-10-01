@@ -77,7 +77,10 @@ async function call(method: string, path: string, body: unknown): Promise<any> {
   });
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`${method} ${path} -> ${res.status} ${res.statusText}\n${text}`);
+    // The server's own reason goes on the FIRST line too: reports show only that
+    // line, and a bare "403 Forbidden" can't tell a bad token from a blocked caller.
+    const why = text.replace(/\s+/g, ' ').trim().slice(0, 200);
+    throw new Error(`${method} ${path} -> ${res.status} ${res.statusText}${why ? ` — ${why}` : ''}\n${text}`);
   }
   let json: any;
   try {

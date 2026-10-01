@@ -39,7 +39,7 @@ export const EXPECTED: Record<string, Record<string, ExpectedContent>> = {
   // ── Competency homepages (learning plan + 73 courses in For You) ───
   BNRC:     { 'ANM-Student-Bihar': { type: 'competency', forYou: 73 } },
   DMHUP:    { 'ANM-Outreach-UP':   { type: 'competency', forYou: 73 } },
-  PVTBIHAR: { 'ANM-Bihar':         { type: 'competency', forYou: 73 } },
+  PVTBIHAR: { 'ANM-BIHAR':         { type: 'competency', forYou: 73 } },
   SHSB:     {
     'ANM-Bihar': { type: 'competency', forYou: 73 },
     // CHO-Bihar is NOT a competency homepage: verified on SHSB-CHO005 that the

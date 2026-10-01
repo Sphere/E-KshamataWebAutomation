@@ -72,6 +72,11 @@ function flattenPlaywright(report) {
           status,
           ms: (t.results || []).reduce((a, r) => a + (r.duration || 0), 0),
           error: stripAnsi(last.error?.message || last.errors?.[0]?.message || '').split('\n').find((l) => l.trim()) || '',
+          // "difference (…)" annotations: things that differ but are NOT failures
+          // (e.g. e-Kshamata staging counts vs production). Runtime annotations
+          // can sit on the test or on its result, depending on the Playwright version.
+          differences: [...(t.annotations || []), ...(t.results || []).flatMap((r) => r.annotations || [])]
+            .filter((a) => /^difference/i.test(a.type || '')).map((a) => a.description || ''),
         });
       }
     }
@@ -120,10 +125,19 @@ const cmpPdf = files.filter((f) => /compare_production_vs_staging_.*_SIMPLE\.pdf
 //   Sphere      generated-emails.txt   "ISO \t env \t spec \t email"  (older: "ISO \t email")
 //   e-Kshamata  created-users.txt      "ISO | ORG | role | email | password | userId | env=host"
 const runStart = Date.now() - 6 * 3600_000; // generous: the run is at most a few hours old
+// The report job runs in a checkout of the repo, so the COMMITTED ledgers are in
+// the working directory. A line already there was not created by this run — it
+// was committed beforehand — so it is skipped. (Without this, accounts made
+// locally and committed shortly before a run were counted as the run's own.)
+const committed = new Set();
+for (const f of ['created-users.txt', 'generated-emails.txt']) {
+  try { readFileSync(f, 'utf-8').split(/\r?\n/).forEach((l) => l.trim() && committed.add(l.trim())); } catch { /* not in this repo */ }
+}
 const accounts = [];
 for (const p of files.filter((f) => /(generated-emails|created-users)\.txt$/.test(f))) {
   const env = (artifactOf(p).match(/-(production|staging)-/) || [])[1] || '';
   for (const line of readFileSync(p, 'utf-8').split(/\r?\n/)) {
+    if (committed.has(line.trim())) continue; // was in the repo before this run
     if (line.includes(' | ')) {
       // Only the email is taken — the password column never goes into the report.
       const c = line.split(' | ').map((x) => x.trim());
@@ -142,6 +156,8 @@ const uniqueAccounts = [...new Map(accounts.map((a) => [a.email, a])).values()];
 // ── headline ───────────────────────────────────────────────────────────
 const allRows = suites.flatMap((s) => s.rows.map((r) => ({ ...r, env: s.env, job: s.job })));
 const failed = allRows.filter((r) => r.status === 'failed');
+// One entry per flagged difference (de-duplicated per env + text).
+const differences = [...new Map(allRows.flatMap((r) => (r.differences || []).map((d) => [`${r.env}|${d}`, { env: r.env, file: r.file, text: d }]))).values()];
 const jobResults = Object.entries(JOBS).map(([name, v]) => ({ name, result: v?.result || 'unknown' }));
 const jobProblem = jobResults.filter((j) => !['success', 'skipped'].includes(j.result));
 const cmpBlocking = cmp ? cmp.routes.filter((r) => r.worst === 'error').length : null;
@@ -183,6 +199,7 @@ html += `<div style="margin-top:12px">`
   + stat('tests passed', count(allRows, 'passed'), C.ok)
   + stat('tests failed', failed.length, failed.length ? C.err : C.navy)
   + stat('skipped', count(allRows, 'skipped'), C.muted)
+  + (differences.length ? stat('differences to review (not failures)', differences.length, C.warn) : '')
   + stat('compare: pages with blocking differences', cmpBlocking ?? '—', cmpBlocking ? C.warn : C.navy)
   + stat('accounts created', uniqueAccounts.length, C.teal)
   + `</div>`;
@@ -226,6 +243,15 @@ html += failed.length
   : `<div style="background:${C.okBg};color:${C.ok};border-left:4px solid ${C.ok};padding:10px 14px;border-radius:6px">No test failed.</div>`;
 
 // Compare
+// Differences — flagged for review, deliberately NOT styled as failures.
+if (differences.length) {
+  html += h2(`Differences to review (${differences.length}) — not failures`);
+  html += `<div style="background:${C.warnBg};border-left:4px solid ${C.warn};padding:10px 14px;border-radius:6px;margin-bottom:10px;font-size:13px;color:${C.text}">`
+    + `These values differ from production. The tests still passed — they are listed for the team to validate.</div>`;
+  html += table(['Environment', 'What differs'], differences.map((d) => `<tr><td ${td()}>${esc(d.env)}</td>`
+    + `<td ${td()}>${esc(d.text)}<div style="color:${C.muted};font-size:12px">${esc(d.file)}</div></td></tr>`));
+}
+
 html += h2('Production vs staging — compared pages');
 if (!cmp) {
   html += `<p style="color:${C.err}">The compare report is missing — the compare job may have failed.</p>`;
@@ -259,6 +285,7 @@ let md = `## ${subject}\n\n| Job | Environment | Passed | Failed | Skipped |\n|-
 for (const s of bySuite) md += `| ${s.job} | ${s.env} | ${count(s.rows, 'passed')} | ${count(s.rows, 'failed')} | ${count(s.rows, 'skipped')} |\n`;
 if (cmp) md += `\n**Compare:** ${cmpBlocking} of ${cmp.routes.length} compared pages with blocking differences.\n`;
 if (failed.length) md += `\n### Failures\n${failed.map((r) => `- **${r.env}** · ${r.file} · ${r.title} — ${r.error.slice(0, 160)}`).join('\n')}\n`;
+if (differences.length) md += `\n### Differences to review (not failures)\n${differences.map((d) => `- **${d.env}** · ${d.text}`).join('\n')}\n`;
 md += `\nAccounts created: ${uniqueAccounts.length}. The full report is in the **daily-summary-${RUN_NUMBER}** artifact.\n`;
 
 // ── GitHub annotations ─────────────────────────────────────────────────
@@ -275,6 +302,11 @@ if (process.env.GITHUB_ACTIONS) {
   for (const r of failed.slice(0, 9)) console.log(`::error title=${oneLine(`Failed on ${r.env}: ${r.file}`)}::${oneLine(`${r.title} — ${r.error.slice(0, 200)}`)}`);
   if (failed.length > 9) console.log(`::error title=More failures::${failed.length - 9} more — see the daily-summary artifact`);
   for (const j of jobProblem) console.log(`::warning title=Job not green::${j.name}: ${j.result}`);
+  // A notice, not an error: differences are for review, not failures.
+  if (differences.length) {
+    const shownD = differences.slice(0, 6).map((d) => `${d.env}: ${d.text}`).join(' · ');
+    console.log(`::notice title=Differences to review (${differences.length}) — not failures::${oneLine(shownD + (differences.length > 6 ? ` · … ${differences.length - 6} more in the report` : ''))}`);
+  }
 }
 
 mkdirSync(OUT, { recursive: true });

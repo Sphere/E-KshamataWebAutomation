@@ -16,7 +16,33 @@ import {
  * Expected values live in tests/fixtures/org-content-expected.ts (edit there).
  * Reuses the users in created-users.txt by default; set PROVISION=1 to mint
  * fresh users. Run: npm run test:org-content
+ *
+ * STAGING is observe-only for the numbers. Production and staging are separate
+ * backends with different course sets (staging serves Hindi versions, with
+ * different ids and counts), so the fixture numbers — taken from production —
+ * cannot be compared there. On staging the homepage TYPE is still asserted
+ * (Learning Plan / programs render, For You is non-empty), but every count is
+ * only RECORDED and shown in the report for the team to validate. Set
+ * ORG_CONTENT_STRICT=1 to enforce the production numbers on staging anyway.
  */
+const OBSERVE_ONLY = /staging/i.test(BASE_URL) && process.env.ORG_CONTENT_STRICT !== '1';
+
+/**
+ * Show a staging count next to the production figure, in the log and on the
+ * test in the report. A difference is flagged loudly but NEVER fails the test —
+ * it is for the team to validate. Annotation types:
+ *   "difference (staging)"  the number differs from production
+ *   "observed (staging)"    same as production, or production has no figure
+ */
+function noteObserved(label: string, what: string, actual: number | null, production: number | null | undefined) {
+  const differs = production != null && actual !== production;
+  const delta = differs && actual != null ? ` (${actual - production! > 0 ? '+' : ''}${actual - production!})` : '';
+  const message = differs
+    ? `${label}: ${what} ${actual} — DIFFERS from production ${production}${delta}`
+    : `${label}: ${what} ${actual}${production != null ? ' — same as production' : ' (no production figure)'}`;
+  console.log(`[${differs ? 'DIFFERENCE' : 'OBSERVED'} on staging] ${message}`);
+  test.info().annotations.push({ type: differs ? 'difference (staging)' : 'observed (staging)', description: message });
+}
 test.describe('Org content — homepage type & mapped courses (For You)', () => {
   // NOTE: do NOT use mode:'serial' here — in serial mode the FIRST failure skips
   // every remaining test. These checks are independent (fresh context + login
@@ -82,7 +108,8 @@ test.describe('Org content — homepage type & mapped courses (For You)', () => 
           const cards = await mc.programCardCount();
           const names = await page.locator('.program-card, [class*="program"] h3, [class*="program"] h4')
             .allInnerTexts().catch(() => []);
-          const res = checkMinimum(cards, exp.review ? null : exp.programs, `${orgKey}/${designation}: program cards`);
+          const res = checkMinimum(cards, exp.review || OBSERVE_ONLY ? null : exp.programs, `${orgKey}/${designation}: program cards`);
+          if (OBSERVE_ONLY) noteObserved(`${orgKey}/${designation}`, 'program cards', cards, exp.programs);
           console.log(`[VALIDATE] ${res.message}`);
           recordObservation({
             org: orgKey, designation, email: user.email, type: 'programs',
@@ -113,8 +140,12 @@ test.describe('Org content — homepage type & mapped courses (For You)', () => 
             forYou = await readForYou(mc);
             // More competencies on the home ⇒ more mapped courses in For You, so
             // the fixture number is a floor, not an equality.
-            res = checkMinimum(forYou, exp.review ? null : exp.forYou, `${orgKey}/${designation}: For You`);
+            res = checkMinimum(forYou, exp.review || OBSERVE_ONLY ? null : exp.forYou, `${orgKey}/${designation}: For You`);
             console.log(`[VALIDATE] ${res.message}`);
+            if (OBSERVE_ONLY) {
+              noteObserved(`${orgKey}/${designation}`, `${cards} competencies · For You`, forYou, exp.forYou);
+              expect(forYou ?? 0, `${orgKey}/${designation}: For You should be non-empty`).toBeGreaterThan(0);
+            }
           }
           recordObservation({
             org: orgKey, designation, email: user.email, type: 'competency',
@@ -140,7 +171,10 @@ test.describe('Org content — homepage type & mapped courses (For You)', () => 
 
         expect(forYou, `${orgKey}/${designation}: "For You" tab should render a count`).not.toBeNull();
 
-        if (exp.type === 'none') {
+        if (OBSERVE_ONLY) {
+          // Staging: show what is there; the team validates it. No count is asserted.
+          noteObserved(`${orgKey}/${designation}`, 'For You', forYou, exp.type === 'none' ? 0 : exp.forYou);
+        } else if (exp.type === 'none') {
           expect(forYou, `${orgKey}/${designation}: expected NO mapped courses`).toBe(0);
         } else if (exp.review) {
           // Unconfirmed — the log shows the real number; just confirm it loads.
@@ -160,7 +194,8 @@ test.describe('Org content — homepage type & mapped courses (For You)', () => 
           drift: '',
         });
 
-        if (exp.names?.length) {
+        // Named courses are production (English) titles — staging's differ, so skip there.
+        if (exp.names?.length && !OBSERVE_ONLY) {
           const titles = (await mc.forYouCourseTitles()).map((t) => t.toLowerCase());
           for (const name of exp.names) {
             expect(

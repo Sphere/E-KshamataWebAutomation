@@ -1,8 +1,8 @@
 {
   "orgKey": "NHMMADHYA",
   "designation": "ANM/MPW",
-  "email": "NHMMADHYA-ANM041@yopmail.com",
+  "email": "STAGE-NHMMADHYA-ANM015@yopmail.com",
   "password": "Aastrika@123",
-  "userId": "677ca2e9-f4b9-413f-8789-1ce2a9a911ef",
-  "env": "ekshamata.aastrika.org"
+  "userId": "aec1a2bb-283f-4ddf-a16d-fa649010fb03",
+  "env": "ekshamata-staging.aastrika.org"
 }

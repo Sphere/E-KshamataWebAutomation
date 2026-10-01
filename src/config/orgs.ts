@@ -98,7 +98,7 @@ export const ORGS: Record<string, OrgConfig> = {
     key: 'PVTBIHAR',
     name: 'Private (Bihar)',
     orgId: '01403708858877542434777',
-    designations: [{ designation: 'ANM-Bihar', emailPrefix: 'PVTBIHAR-ANM' }],
+    designations: [{ designation: 'ANM-BIHAR', emailPrefix: 'PVTBIHAR-ANM' }],
     profileFile: 'PVTBIHAR.json',
     landingPage: 'Homepage',
   },
