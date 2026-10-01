@@ -48,6 +48,13 @@ export const STAGING_USERORG_UPDATE_URL =
   process.env.STAGING_USERORG_UPDATE_URL
   || 'http://a4686c843e49343fbb2439ab04e2f479-610586589.ap-south-1.elb.amazonaws.com/userorg/private/user/v1/update';
 
+/**
+ * UAT has the same gap as staging (no gateway route for the profile update), so
+ * it needs its own userorg service address. Not known yet — set it in .env (and
+ * as a GitHub secret) once the platform team provides it.
+ */
+export const UAT_USERORG_UPDATE_URL = (process.env.UAT_USERORG_UPDATE_URL || '').trim();
+
 export function authHeaders(): Record<string, string> {
   // Staging has its own api_admin token; fall back to the prod one if unset.
   // UAT has its own too, with NO fallback — a production token must never be
@@ -204,9 +211,19 @@ export async function updateProfile(userId: string, profileDetails: any): Promis
   //   prod    — /api/user/private/v1/update behind the gateway
   //   staging — the userorg service directly (the gateway route is a 404 there,
   //             and the public /api/user/v1/update wants the user's own session)
+  //   uat     — same as staging: the gateway route is a 404 and the public routes
+  //             401 (even with the user's own token, checked 2026-10-01), so it
+  //             needs UAT's userorg service address in UAT_USERORG_UPDATE_URL.
   const endpoints = IS_STAGING
     ? [STAGING_USERORG_UPDATE_URL, '/api/user/private/v1/update', '/api/user/v1/update']
-    : ['/api/user/private/v1/update', '/api/user/v1/update'];
+    : IS_UAT
+      ? [...(UAT_USERORG_UPDATE_URL ? [UAT_USERORG_UPDATE_URL] : []), '/api/user/private/v1/update', '/api/user/v1/update']
+      : ['/api/user/private/v1/update', '/api/user/v1/update'];
+  if (IS_UAT && !UAT_USERORG_UPDATE_URL) {
+    console.log('[api] ⚠️  UAT_USERORG_UPDATE_URL is not set — UAT exposes no gateway route for the');
+    console.log('      profile update, so it will be rejected. Ask the platform team for UAT\'s userorg');
+    console.log('      update URL (staging\'s is …elb.amazonaws.com/userorg/private/user/v1/update).');
+  }
 
   let lastError: unknown;
   for (const endpoint of endpoints) {

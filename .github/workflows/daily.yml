@@ -46,6 +46,7 @@ jobs:
       SPHERE_API_TOKEN: ${{ secrets.SPHERE_API_TOKEN }}
       SPHERE_STAGING_API_TOKEN: ${{ secrets.SPHERE_STAGING_API_TOKEN }}
       SPHERE_UAT_API_TOKEN: ${{ secrets.SPHERE_UAT_API_TOKEN }}
+      UAT_USERORG_UPDATE_URL: ${{ secrets.UAT_USERORG_UPDATE_URL }}   # UAT profile service (see src/api/Ekshamata-api.ts)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -95,6 +96,7 @@ jobs:
       SPHERE_API_TOKEN: ${{ secrets.SPHERE_API_TOKEN }}
       SPHERE_STAGING_API_TOKEN: ${{ secrets.SPHERE_STAGING_API_TOKEN }}
       SPHERE_UAT_API_TOKEN: ${{ secrets.SPHERE_UAT_API_TOKEN }}
+      UAT_USERORG_UPDATE_URL: ${{ secrets.UAT_USERORG_UPDATE_URL }}   # UAT profile service (see src/api/Ekshamata-api.ts)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -162,6 +164,7 @@ jobs:
       SPHERE_API_TOKEN: ${{ secrets.SPHERE_API_TOKEN }}
       SPHERE_STAGING_API_TOKEN: ${{ secrets.SPHERE_STAGING_API_TOKEN }}
       SPHERE_UAT_API_TOKEN: ${{ secrets.SPHERE_UAT_API_TOKEN }}
+      UAT_USERORG_UPDATE_URL: ${{ secrets.UAT_USERORG_UPDATE_URL }}   # UAT profile service (see src/api/Ekshamata-api.ts)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
