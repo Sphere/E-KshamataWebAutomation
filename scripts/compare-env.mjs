@@ -136,6 +136,7 @@ function labelFor(url) {
   const h = new URL(url).hostname;
   if (/^ekshamata\./i.test(h)) return 'Production';
   if (/staging/i.test(h)) return 'Staging';
+  if (/(^|-)uat\./i.test(h)) return 'UAT';
   if (/^localhost|^127\./.test(h)) return 'Localhost';
   return h;
 }

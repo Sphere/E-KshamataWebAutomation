@@ -49,6 +49,7 @@ const cli = require.resolve('@playwright/test/cli');
 const BASE_URLS = [
   ['Production (Ekshamata)', 'https://ekshamata.aastrika.org'],
   ['Staging (Ekshamata)',    'https://ekshamata-staging.aastrika.org'],
+  ['UAT (Ekshamata)',        'https://ekshamata-uat.aastrika.org'],
   ['Localhost',              'http://localhost:3000'],
 ];
 async function pickBaseUrl() {

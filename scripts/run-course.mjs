@@ -44,6 +44,7 @@ const INTERACTIVE = (process.stdin.isTTY && process.stdout.isTTY) || process.env
 const ENVIRONMENTS = [
   ['Production', 'https://ekshamata.aastrika.org'],
   ['Staging', 'https://ekshamata-staging.aastrika.org'],
+  ['UAT',     'https://ekshamata-uat.aastrika.org'],
   ['Localhost', 'http://localhost:3000'],
 ];
 /**

@@ -280,7 +280,7 @@ export function createdUser({ org = '', email = '', baseUrl = '' } = {}) {
 /** An account named outright in .env for this environment, or null. */
 export function explicitCredentials(baseUrl) {
   const host = new URL(baseUrl).hostname;
-  const prefix = /staging/i.test(host) ? 'STAGING' : /^localhost|127\.0\.0\.1/.test(host) ? 'LOCAL' : 'PROD';
+  const prefix = /staging/i.test(host) ? 'STAGING' : /(^|-)uat\./i.test(host) ? 'UAT' : /^localhost|127\.0\.0\.1/.test(host) ? 'LOCAL' : 'PROD';
   const pairs = [
     [process.env[`${prefix}_EMAIL`], process.env[`${prefix}_PASSWORD`], `${prefix}_EMAIL`],
     [process.env.COMPARE_EMAIL, process.env.COMPARE_PASSWORD, 'COMPARE_EMAIL'],

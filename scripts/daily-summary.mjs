@@ -99,8 +99,8 @@ const suites = []; // { job, env, rows, stats }
 for (const p of files.filter((f) => /results(-[\w-]+)?\.json$/.test(basename(f)))) {
   const step = (basename(p).match(/^results-([\w-]+)\.json$/) || [])[1];
   const art = artifactOf(p);
-  // Any "<job>-<production|staging>-<run>" artifact with a results.json counts.
-  const m = art.match(/^(.+?)-(production|staging)-\d+$/);
+  // Any "<job>-<production|staging|uat>-<run>" artifact with a results.json counts.
+  const m = art.match(/^(.+?)-(production|staging|uat)-\d+$/);
   if (!m) continue;
   const report = readJson(p);
   if (!report) continue;
@@ -135,7 +135,7 @@ for (const f of ['created-users.txt', 'generated-emails.txt']) {
 }
 const accounts = [];
 for (const p of files.filter((f) => /(generated-emails|created-users)\.txt$/.test(f))) {
-  const env = (artifactOf(p).match(/-(production|staging)-/) || [])[1] || '';
+  const env = (artifactOf(p).match(/-(production|staging|uat)-/) || [])[1] || '';
   for (const line of readFileSync(p, 'utf-8').split(/\r?\n/)) {
     if (committed.has(line.trim())) continue; // was in the repo before this run
     if (line.includes(' | ')) {
@@ -143,7 +143,7 @@ for (const p of files.filter((f) => /(generated-emails|created-users)\.txt$/.tes
       const c = line.split(' | ').map((x) => x.trim());
       if (Date.parse(c[0]) < runStart || !/@/.test(c[3] || '')) continue;
       const host = (c.find((x) => x.startsWith('env=')) || '').slice(4);
-      accounts.push({ when: c[0], env: /staging/i.test(host) ? 'staging' : host ? 'production' : env, source: [c[1], c[2]].filter(Boolean).join(' · '), email: c[3] });
+      accounts.push({ when: c[0], env: /staging/i.test(host) ? 'staging' : /(^|-)uat\./i.test(host) ? 'uat' : host ? 'production' : env, source: [c[1], c[2]].filter(Boolean).join(' · '), email: c[3] });
       continue;
     }
     const parts = line.trim().split(/\t/);

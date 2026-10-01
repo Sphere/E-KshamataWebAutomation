@@ -55,6 +55,7 @@ const keys = Object.keys(orgs);
 const BASE_URLS = [
   ['Production (Ekshamata)', 'https://ekshamata.aastrika.org'],
   ['Staging (Ekshamata)',    'https://ekshamata-staging.aastrika.org'],
+  ['UAT (Ekshamata)',        'https://ekshamata-uat.aastrika.org'],
   ['Localhost',              'http://localhost:3000'],
 ];
 let BASE_URL = process.env.BASE_URL && process.env.BASE_URL.replace(/\/+$/, '');

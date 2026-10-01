@@ -28,11 +28,15 @@ function resolveBaseUrl(): string {
   if (process.env.SPHERE_BASE_URL) return process.env.SPHERE_BASE_URL.replace(/\/+$/, '');
   const target = process.env.BASE_URL || '';
   if (/staging/i.test(target)) return 'https://ekshamata-staging.aastrika.org';
+  // UAT (ekshamata-uat / uat.aastrika.org) is a THIRD backend — never let it fall
+  // through to production, or a UAT run would create its users on prod.
+  if (/(^|\/\/|[.-])uat\./i.test(target)) return 'https://ekshamata-uat.aastrika.org';
   return 'https://sphere.aastrika.org';
 }
 
 export const BASE_URL = resolveBaseUrl();
 export const IS_STAGING = /staging/i.test(BASE_URL);
+export const IS_UAT = /ekshamata-uat|\/\/uat\./i.test(BASE_URL);
 
 /**
  * Staging serves the profile update from the userorg service DIRECTLY — the
@@ -46,14 +50,22 @@ export const STAGING_USERORG_UPDATE_URL =
 
 export function authHeaders(): Record<string, string> {
   // Staging has its own api_admin token; fall back to the prod one if unset.
-  const token = (IS_STAGING && process.env.SPHERE_STAGING_API_TOKEN) || process.env.SPHERE_API_TOKEN;
-  const cookie = IS_STAGING
-    ? process.env.SPHERE_STAGING_API_COOKIE
-    : process.env.SPHERE_API_COOKIE;
+  // UAT has its own too, with NO fallback — a production token must never be
+  // sent to (or silently accepted by) a different backend.
+  const token = IS_UAT
+    ? process.env.SPHERE_UAT_API_TOKEN
+    : (IS_STAGING && process.env.SPHERE_STAGING_API_TOKEN) || process.env.SPHERE_API_TOKEN;
+  const cookie = IS_UAT
+    ? process.env.SPHERE_UAT_API_COOKIE
+    : IS_STAGING
+      ? process.env.SPHERE_STAGING_API_COOKIE
+      : process.env.SPHERE_API_COOKIE;
   if (!token) {
-    throw new Error(IS_STAGING
-      ? 'SPHERE_STAGING_API_TOKEN (or SPHERE_API_TOKEN) not set in .env'
-      : 'SPHERE_API_TOKEN not set in .env');
+    throw new Error(IS_UAT
+      ? 'SPHERE_UAT_API_TOKEN not set in .env (UAT needs its own api_admin token)'
+      : IS_STAGING
+        ? 'SPHERE_STAGING_API_TOKEN (or SPHERE_API_TOKEN) not set in .env'
+        : 'SPHERE_API_TOKEN not set in .env');
   }
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

@@ -1,7 +1,7 @@
 import { appendFileSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { getOrg, loadProfile, type DesignationVariant } from '../config/orgs';
-import { createUser, assignRole, updateProfile, getOrgChannel, IS_STAGING } from '../api/Ekshamata-api';
+import { createUser, assignRole, updateProfile, getOrgChannel, IS_STAGING, IS_UAT } from '../api/Ekshamata-api';
 
 // Project-root record files (Playwright runs from the project root).
 const ROOT = resolve(__dirname, '../..');
@@ -52,7 +52,7 @@ function record(user: CreatedUser): void {
 export function envTag(): string {
   const explicit = (process.env.USER_ENV_TAG || '').trim();
   if (explicit) return /^none$/i.test(explicit) ? '' : explicit.toUpperCase();
-  return IS_STAGING ? 'STAGE' : '';
+  return IS_STAGING ? 'STAGE' : IS_UAT ? 'UAT' : '';
 }
 
 /** "STAGE" → "Stage" — the first name the tagged account is created with. */
