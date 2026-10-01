@@ -116,9 +116,18 @@ for (const p of files.filter((f) => /results(-[\w-]+)?\.json$/.test(basename(f))
 const count = (rows, s) => rows.filter((r) => r.status === s).length;
 
 // ── compare ────────────────────────────────────────────────────────────
-const cmpFile = files.filter((f) => /compare_production_vs_staging_[^/\\]*\d\.json$/.test(f)).sort().at(-1);
-const cmp = cmpFile ? readJson(cmpFile) : null;
-const cmpPdf = files.filter((f) => /compare_production_vs_staging_.*_SIMPLE\.pdf$/.test(f)).sort().at(-1);
+// Every compare in the run — production vs staging and/or production vs UAT.
+// The newest report per pair wins (a re-run job leaves an older one behind).
+const cmpByPair = new Map();
+for (const f of files.filter((p) => /compare_[a-z]+_vs_[a-z]+_[^/\\]*\d\.json$/.test(p)).sort()) {
+  const json = readJson(f);
+  if (!json?.routes) continue;
+  const a = json.envA?.label || 'A', b = json.envB?.label || 'B';
+  cmpByPair.set(`${a}|${b}`, { file: f, json, a, b });
+}
+const cmps = [...cmpByPair.values()];
+const cmp = cmps[0]?.json ?? null; // the first, for the single-figure headline
+const cmpPdfs = files.filter((f) => /compare_[a-z]+_vs_[a-z]+_.*_SIMPLE\.pdf$/.test(f)).sort();
 
 // ── accounts created this run ──────────────────────────────────────────
 // Both ledgers hold the whole history; keep only lines from this run.
@@ -160,7 +169,9 @@ const failed = allRows.filter((r) => r.status === 'failed');
 const differences = [...new Map(allRows.flatMap((r) => (r.differences || []).map((d) => [`${r.env}|${d}`, { env: r.env, file: r.file, text: d }]))).values()];
 const jobResults = Object.entries(JOBS).map(([name, v]) => ({ name, result: v?.result || 'unknown' }));
 const jobProblem = jobResults.filter((j) => !['success', 'skipped'].includes(j.result));
-const cmpBlocking = cmp ? cmp.routes.filter((r) => r.worst === 'error').length : null;
+// Blocking pages, summed over every compare in the run.
+const blockingOf = (j) => j.routes.filter((r) => r.worst === 'error').length;
+const cmpBlocking = cmps.length ? cmps.reduce((n, c) => n + blockingOf(c.json), 0) : null;
 const ok = failed.length === 0 && jobProblem.length === 0;
 const today = new Date().toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' });
 const subject = ok
@@ -252,22 +263,26 @@ if (differences.length) {
     + `<td ${td()}>${esc(d.text)}<div style="color:${C.muted};font-size:12px">${esc(d.file)}</div></td></tr>`));
 }
 
-html += h2('Production vs staging — compared pages');
-if (!cmp) {
+// One section per compare (production vs staging, production vs UAT…), each
+// labelled from the report's own environment names.
+if (!cmps.length) {
+  html += h2('Environment compare');
   html += `<p style="color:${C.err}">The compare report is missing — the compare job may have failed.</p>`;
-} else {
+}
+for (const { json: cmp, a, b } of cmps) {
+  html += h2(`${a} vs ${b} — compared pages`);
   const verdict = (w) => (w === 'error' ? pill('Broken / blocking', 'err') : w === 'warn' ? pill('Different', 'warn') : w === 'info' ? pill('Minor', '') : pill('Same', 'ok'));
   html += table(['Page', 'Verdict', 'What differs'], cmp.routes.map((r) => `<tr><td ${td()}><div style="font-weight:600">${esc(r.name)}</div><div style="color:${C.muted};font-size:12px">${esc(r.path)}</div></td>`
     + `<td ${td()}>${verdict(r.worst)}</td><td ${td('font-size:12px')}>${(r.findings || []).filter((f) => f.severity !== 'info').map((f) => `• ${esc(f.title)}`).join('<br>') || '—'}</td></tr>`));
   if (cmp.api?.length) {
     html += `<h3 style="${font};color:${C.navy};font-size:15px;margin:18px 0 8px">API parity</h3>`;
-    html += table(['API', 'Production', 'Staging'], cmp.api.map((a) => `<tr><td ${td()}>${esc(a.a?.name || a.id)}</td>`
-      + `<td ${td()}>${esc(a.a?.status)} · ${esc(a.a?.count ?? '—')} records · ${esc(a.a?.ms)} ms</td><td ${td()}>${esc(a.b?.status)} · ${esc(a.b?.count ?? '—')} records · ${esc(a.b?.ms)} ms</td></tr>`));
+    html += table(['API', a, b], cmp.api.map((x) => `<tr><td ${td()}>${esc(x.a?.name || x.id)}</td>`
+      + `<td ${td()}>${esc(x.a?.status)} · ${esc(x.a?.count ?? '—')} records · ${esc(x.a?.ms)} ms</td><td ${td()}>${esc(x.b?.status)} · ${esc(x.b?.count ?? '—')} records · ${esc(x.b?.ms)} ms</td></tr>`));
   }
   if (cmp.catalogue) {
     const c = cmp.catalogue;
     html += `<div style="background:${C.teal50};border-left:4px solid ${C.teal};padding:10px 14px;border-radius:6px;margin-top:12px;font-size:13px">`
-      + `<b>Course catalogue:</b> production ${esc(c.totalA)} · staging ${esc(c.totalB)} · only on production ${esc(c.onlyA?.length ?? 0)} · only on staging ${esc(c.onlyB?.length ?? 0)}</div>`;
+      + `<b>Course catalogue:</b> ${esc(a.toLowerCase())} ${esc(c.totalA)} · ${esc(b.toLowerCase())} ${esc(c.totalB)} · only on ${esc(a.toLowerCase())} ${esc(c.onlyA?.length ?? 0)} · only on ${esc(b.toLowerCase())} ${esc(c.onlyB?.length ?? 0)}</div>`;
   }
 }
 
@@ -283,7 +298,7 @@ html += `</div></body></html>`;
 // ── markdown for the run's Summary page ────────────────────────────────
 let md = `## ${subject}\n\n| Job | Environment | Passed | Failed | Skipped |\n|---|---|---|---|---|\n`;
 for (const s of bySuite) md += `| ${s.job} | ${s.env} | ${count(s.rows, 'passed')} | ${count(s.rows, 'failed')} | ${count(s.rows, 'skipped')} |\n`;
-if (cmp) md += `\n**Compare:** ${cmpBlocking} of ${cmp.routes.length} compared pages with blocking differences.\n`;
+for (const c of cmps) md += `\n**Compare ${c.a} vs ${c.b}:** ${blockingOf(c.json)} of ${c.json.routes.length} compared pages with blocking differences.\n`;
 if (failed.length) md += `\n### Failures\n${failed.map((r) => `- **${r.env}** · ${r.file} · ${r.title} — ${r.error.slice(0, 160)}`).join('\n')}\n`;
 if (differences.length) md += `\n### Differences to review (not failures)\n${differences.map((d) => `- **${d.env}** · ${d.text}`).join('\n')}\n`;
 md += `\nAccounts created: ${uniqueAccounts.length}. The full report is in the **daily-summary-${RUN_NUMBER}** artifact.\n`;
@@ -296,7 +311,7 @@ if (process.env.GITHUB_ACTIONS) {
   const oneLine = (s) => String(s).replace(/\r?\n/g, ' ').replace(/%/g, '%25');
   const perEnv = bySuite.map((s) => `${s.job} ${s.env}: ${count(s.rows, 'passed')} passed, ${count(s.rows, 'failed')} failed`).join(' · ');
   console.log(`::notice title=Daily run summary::${oneLine(`${subject.replace(/^\S+\s/, '')} — ${perEnv}`)}`);
-  if (cmp) console.log(`::notice title=Prod vs staging compare::${oneLine(`${cmpBlocking} of ${cmp.routes.length} compared pages with blocking differences · catalogue prod ${cmp.catalogue?.totalA ?? '?'} / staging ${cmp.catalogue?.totalB ?? '?'}`)}`);
+  for (const c of cmps) console.log(`::notice title=${c.a} vs ${c.b} compare::${oneLine(`${blockingOf(c.json)} of ${c.json.routes.length} compared pages with blocking differences · catalogue ${c.a.toLowerCase()} ${c.json.catalogue?.totalA ?? '?'} / ${c.b.toLowerCase()} ${c.json.catalogue?.totalB ?? '?'}`)}`);
   const shown = uniqueAccounts.slice(0, 10).map((a) => `${a.env}: ${a.email}`).join(" · ");
   console.log(`::notice title=Accounts created (${uniqueAccounts.length})::${oneLine(uniqueAccounts.length ? shown + (uniqueAccounts.length > 10 ? ` · … ${uniqueAccounts.length - 10} more in the report` : "") : "none")}`);
   for (const r of failed.slice(0, 9)) console.log(`::error title=${oneLine(`Failed on ${r.env}: ${r.file}`)}::${oneLine(`${r.title} — ${r.error.slice(0, 200)}`)}`);
@@ -322,7 +337,7 @@ if (!process.env.SMTP_HOST || !process.env.ALERT_EMAIL_TO) {
   const to = process.env.ALERT_EMAIL_TO;
   const from = process.env.ALERT_EMAIL_FROM || process.env.SMTP_USER || to;
   const attachments = [{ filename: `sphere-daily-summary-${RUN_NUMBER || 'run'}.html`, content: html, contentType: 'text/html' }];
-  if (cmpPdf && statSync(cmpPdf).size < 8 * 1024 * 1024) attachments.push({ filename: 'prod-vs-staging-compare.pdf', path: cmpPdf });
+  for (const pdf of cmpPdfs) if (statSync(pdf).size < 8 * 1024 * 1024) attachments.push({ filename: basename(pdf), path: pdf });
   try {
     const nodemailer = (await import('nodemailer')).default;
     const transporter = nodemailer.createTransport({

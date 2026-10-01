@@ -25,14 +25,16 @@ import {
  * only RECORDED and shown in the report for the team to validate. Set
  * ORG_CONTENT_STRICT=1 to enforce the production numbers on staging anyway.
  */
-const OBSERVE_ONLY = /staging/i.test(BASE_URL) && process.env.ORG_CONTENT_STRICT !== '1';
+// UAT (ekshamata-uat) is a separate backend too, so it is observe-only as well.
+const ENV_NAME = /staging/i.test(BASE_URL) ? 'staging' : 'uat';
+const OBSERVE_ONLY = /staging|(^|\/\/|-)uat\./i.test(BASE_URL) && process.env.ORG_CONTENT_STRICT !== '1';
 
 /**
  * Show a staging count next to the production figure, in the log and on the
  * test in the report. A difference is flagged loudly but NEVER fails the test —
  * it is for the team to validate. Annotation types:
- *   "difference (staging)"  the number differs from production
- *   "observed (staging)"    same as production, or production has no figure
+ *   "difference (<env>)"  the number differs from production
+ *   "observed (<env>)"    same as production, or production has no figure
  */
 function noteObserved(label: string, what: string, actual: number | null, production: number | null | undefined) {
   const differs = production != null && actual !== production;
@@ -40,8 +42,8 @@ function noteObserved(label: string, what: string, actual: number | null, produc
   const message = differs
     ? `${label}: ${what} ${actual} — DIFFERS from production ${production}${delta}`
     : `${label}: ${what} ${actual}${production != null ? ' — same as production' : ' (no production figure)'}`;
-  console.log(`[${differs ? 'DIFFERENCE' : 'OBSERVED'} on staging] ${message}`);
-  test.info().annotations.push({ type: differs ? 'difference (staging)' : 'observed (staging)', description: message });
+  console.log(`[${differs ? 'DIFFERENCE' : 'OBSERVED'} on ${ENV_NAME}] ${message}`);
+  test.info().annotations.push({ type: differs ? `difference (${ENV_NAME})` : `observed (${ENV_NAME})`, description: message });
 }
 test.describe('Org content — homepage type & mapped courses (For You)', () => {
   // NOTE: do NOT use mode:'serial' here — in serial mode the FIRST failure skips

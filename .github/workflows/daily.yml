@@ -15,7 +15,16 @@ name: Daily Prod vs Staging (e-Kshamata)
 on:
   schedule:
     - cron: '30 3 * * *' # 03:30 UTC = 09:00 IST, daily (GitHub may delay a few min)
-  workflow_dispatch: {}   # "Run workflow" button in the Actions tab
+  workflow_dispatch:       # "Run workflow" button in the Actions tab
+    inputs:
+      environments:
+        description: 'Environments to test (scheduled runs: production + staging)'
+        type: choice
+        default: production + staging
+        options:
+          - production + staging
+          - uat only
+          - production + staging + uat
 
 concurrency:
   group: ekshamata-daily
@@ -28,9 +37,15 @@ jobs:
   compare:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(inputs.environments == 'uat only' && '["uat"]' || inputs.environments == 'production + staging + uat' && '["staging","uat"]' || '["staging"]') }}
+    name: compare (production vs ${{ matrix.target }})
     env:
       SPHERE_API_TOKEN: ${{ secrets.SPHERE_API_TOKEN }}
       SPHERE_STAGING_API_TOKEN: ${{ secrets.SPHERE_STAGING_API_TOKEN }}
+      SPHERE_UAT_API_TOKEN: ${{ secrets.SPHERE_UAT_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -41,13 +56,13 @@ jobs:
       # compare-env.mjs exits 1 when it finds BLOCKING differences as well as when
       # it crashes; the JSON report is written only after a complete run, so its
       # presence is the real "did the comparison run" signal.
-      - name: Compare signed-in pages (production vs staging)
+      - name: Compare signed-in pages (production vs ${{ matrix.target }})
         run: |
           set +e
           node scripts/compare-env.mjs --auth --org BNRC \
             --a https://ekshamata.aastrika.org \
-            --b https://ekshamata-staging.aastrika.org
-          if ! ls compare-reports/compare_production_vs_staging_*.json >/dev/null 2>&1; then
+            --b ${{ matrix.target == 'uat' && 'https://ekshamata-uat.aastrika.org' || 'https://ekshamata-staging.aastrika.org' }}
+          if ! ls compare-reports/compare_production_vs_*.json >/dev/null 2>&1; then
             echo "::error::Comparison did not complete — no JSON report was written."
             exit 1
           fi
@@ -56,9 +71,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: env-compare-report-${{ github.run_number }}
+          name: env-compare-report-${{ matrix.target }}-${{ github.run_number }}
           path: |
-            compare-reports/compare_production_vs_staging_*
+            compare-reports/compare_production_vs_*
             created-users.txt
           retention-days: 90
 
@@ -70,19 +85,16 @@ jobs:
     strategy:
       fail-fast: false   # a failure on one environment doesn't cancel the other
       matrix:
-        include:
-          - env: production
-            url: https://ekshamata.aastrika.org
-          - env: staging
-            url: https://ekshamata-staging.aastrika.org
+        env: ${{ fromJSON(inputs.environments == 'uat only' && '["uat"]' || inputs.environments == 'production + staging + uat' && '["production","staging","uat"]' || '["production","staging"]') }}
     name: daily-journey (${{ matrix.env }})
     env:
-      BASE_URL: ${{ matrix.url }}
+      BASE_URL: ${{ matrix.env == 'production' && 'https://ekshamata.aastrika.org' || matrix.env == 'staging' && 'https://ekshamata-staging.aastrika.org' || 'https://ekshamata-uat.aastrika.org' }}
       CREATE_ORG: BNRC
       # Provisioning API tokens (api_admin bearer). Production also accepts the
       # bearer alone, so no expiring session cookie is needed.
       SPHERE_API_TOKEN: ${{ secrets.SPHERE_API_TOKEN }}
       SPHERE_STAGING_API_TOKEN: ${{ secrets.SPHERE_STAGING_API_TOKEN }}
+      SPHERE_UAT_API_TOKEN: ${{ secrets.SPHERE_UAT_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -142,17 +154,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - env: production
-            url: https://ekshamata.aastrika.org
-          - env: staging
-            url: https://ekshamata-staging.aastrika.org
+        env: ${{ fromJSON(inputs.environments == 'uat only' && '["uat"]' || inputs.environments == 'production + staging + uat' && '["production","staging","uat"]' || '["production","staging"]') }}
     name: daily-orgs (${{ matrix.env }})
     env:
-      BASE_URL: ${{ matrix.url }}
+      BASE_URL: ${{ matrix.env == 'production' && 'https://ekshamata.aastrika.org' || matrix.env == 'staging' && 'https://ekshamata-staging.aastrika.org' || 'https://ekshamata-uat.aastrika.org' }}
       JSON_OUT: test-reports/results.json
       SPHERE_API_TOKEN: ${{ secrets.SPHERE_API_TOKEN }}
       SPHERE_STAGING_API_TOKEN: ${{ secrets.SPHERE_STAGING_API_TOKEN }}
+      SPHERE_UAT_API_TOKEN: ${{ secrets.SPHERE_UAT_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
