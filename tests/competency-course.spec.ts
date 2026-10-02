@@ -62,6 +62,8 @@ test.describe(`Competency + Course — ${COMPETENCY} (fail: ${[...failLevels].jo
     // without this the run answered level 1 five times over and still reported
     // the competency complete.
     const quizIdByLevel = new Map<number, string>();
+    // How many times each level was re-handled because the portal didn't credit it.
+    const redoCount = new Map<number, number>();
 
     for (let level = 1; level <= LEVELS; level++) {
       // Each level presents EITHER a self-assessment quiz OR — once we're on the
@@ -165,6 +167,28 @@ test.describe(`Competency + Course — ${COMPETENCY} (fail: ${[...failLevels].jo
         throw new Error(`Level ${level}: could not detect a quiz or course screen (url: ${page.url()})`);
       }
 
+      // ── Did the PORTAL credit this level? The counter above is ours; the
+      //    passbook is the portal's. They drifted on UAT: the level-1 course
+      //    "completed" after 1 of its 5 modules, the counter moved to 2, the next
+      //    "level" was the rest of the SAME course — and from there every level
+      //    was one off: "Level 5" was really level 4 and the real level-5 course
+      //    was never opened, yet the run reported the competency complete.
+      //    So: if the passbook doesn't list this level, it was not a level —
+      //    re-open the competency (it opens whatever level the portal says is
+      //    next) and handle the SAME level number again.
+      const credited = await creditedLevels(page);
+      if (credited && !credited.has(level)) {
+        const tries = (redoCount.get(level) ?? 0) + 1;
+        redoCount.set(level, tries);
+        console.log(`[C+C] ⚠️  the portal has NOT credited Level ${level} (passbook: ${[...credited].sort((a, b) => a - b).join(',') || 'none'})`
+          + ` — not a level yet; re-opening and handling Level ${level} again (${tries}/3)`);
+        expect(tries, `Level ${level} was handled ${tries} times but the portal never credited it`).toBeLessThan(3);
+        if ((await reopenCompetency(page, home, COMPETENCY)) === 'completed') break;
+        level--;
+        continue;
+      }
+      if (credited) console.log(`[C+C] ✔ portal credited Level ${level} (passbook: ${[...credited].sort((a, b) => a - b).join(',')})`);
+
       // A single course can be mapped to EVERY level — finishing it achieves the
       // whole competency ("Competency Achieved"), so stop instead of chasing more.
       if (competencyDone) {
@@ -205,6 +229,34 @@ test.describe(`Competency + Course — ${COMPETENCY} (fail: ${[...failLevels].jo
     });
   });
 });
+
+/**
+ * The levels the PORTAL has credited for the competency being climbed, read from
+ * its own passbook (POST /apis/proxies/v8/user/v1/passbook — the call the
+ * Passbook tab makes; the page's session cookie authorises it, no navigation).
+ * The competency is the one with the most recent credit (the one this run is
+ * working on). Returns null when the passbook can't be read, so a read failure
+ * never blocks a run; an empty set means nothing is credited yet.
+ */
+async function creditedLevels(page: any): Promise<Set<number> | null> {
+  const res = await page.evaluate(async () => {
+    try {
+      const r = await fetch('/apis/proxies/v8/user/v1/passbook', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ request: { typeName: 'competency' } }),
+      });
+      return r.ok ? await r.json() : null;
+    } catch { return null; }
+  }).catch(() => null);
+  if (!res) return null;
+  const comps = Object.values<any>(res?.result?.content?.[0]?.competencies || {});
+  if (!comps.length) return new Set();
+  const newest = (c: any) => Math.max(0, ...(c.acquiredDetails || []).map((d: any) => Date.parse(d.createdDate || d.acquiredDate || '') || 0));
+  const current = comps.sort((a, b) => newest(b) - newest(a))[0];
+  return new Set((current.acquiredDetails || [])
+    .map((d: any) => Number(d.competencyLevelId ?? d.additionalParams?.competencyLevelId))
+    .filter((n: number) => Number.isFinite(n)));
+}
 
 /**
  * For every course this run reports as completed, open its overview page and
@@ -298,6 +350,14 @@ async function verifyPassbook(page: any, competency: string, levels: number): Pr
   expect(info, 'could not read Passbook state').toBeTruthy();
   expect(info!.panels, 'competency not listed in the Passbook tab (no competency row)').toBeGreaterThanOrEqual(1);
   expect(info!.nameMatch, 'competency name not found in the Passbook').toBe(true);
+  // The name being listed proves little (a competency stuck at level 4 is listed
+  // too). The portal's passbook must credit EVERY level 1..levels.
+  const credited = await creditedLevels(page);
+  if (credited) {
+    const missing = Array.from({ length: levels }, (_, i) => i + 1).filter((n) => !credited.has(n));
+    console.log(`[C+C] passbook credits levels: ${[...credited].sort((a, b) => a - b).join(',') || 'none'}`);
+    expect(missing, `the portal has NOT credited level(s) ${missing.join(', ')} of this competency`).toEqual([]);
+  }
   console.log(`[C+C] ✅ Passbook shows the completed competency (${levels} levels)`);
 }
 
