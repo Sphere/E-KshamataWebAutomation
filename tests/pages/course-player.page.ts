@@ -32,16 +32,44 @@ export class CoursePlayer {
       });
       if (b) (b as HTMLElement).click();
     }).catch(() => {});
-    // The label is matched as a FRAGMENT, not as the whole string: the button
-    // reads "कोर्स शुरू करें" in Hindi and "Start Again" on a completed course,
-    // and the old anchored ^…$ match found neither — the course simply never
-    // opened. START_COURSE carries both languages' wordings.
+    // ENROL through the course's own VISIBLE banner button first. Only that button
+    // calls POST /learner/course/v1/enrol; a module link (the Modules list sits in
+    // the page, hidden) opens the player WITHOUT enrolling, and the portal then
+    // throws every bit of progress away — a whole competency run "completed" on
+    // UAT with Started (0) / Completed (0) and every course still at "Start".
+    // When the button says Start (not Resume / Start Again) the enrol call MUST
+    // succeed, or there is no point playing the course.
+    const banner = this.page.locator('.banner-btn:visible, #start-btn:visible').first();
+    if (!/\/viewer\//i.test(this.page.url())
+      && await banner.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true, () => false)) {
+      const label = (await banner.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+      const notEnrolledYet = !/resume|again|continue|जारी|फिर\s*से/i.test(label);
+      const enrol = this.page.waitForResponse(
+        (r) => /\/course\/v1\/enrol\b/.test(r.url()) && r.request().method() === 'POST',
+        { timeout: 20_000 },
+      ).then((r) => r.ok(), () => false);
+      await banner.click().catch(() => {});
+      if (notEnrolledYet) {
+        const ok = await enrol;
+        console.log(ok ? `   🎓 enrolled ("${label}" → POST /enrol OK)` : `   ❌ "${label}" clicked but the course was NOT enrolled`);
+        if (!ok) {
+          throw new Error(`Course not enrolled: "${label}" was clicked but no successful POST /enrol followed — `
+            + 'the portal would discard all progress, so the course is not played.');
+        }
+      }
+      await this.page.waitForURL(/\/viewer\//i, { timeout: 15_000 }).catch(() => {});
+    }
+    // Fallback (no banner button found): the label is matched as a FRAGMENT —
+    // "कोर्स शुरू करें" in Hindi, "Start Again" on a completed course; START_COURSE
+    // carries both languages' wordings. VISIBLE elements only, so a hidden module
+    // link is never clicked in the banner's place.
     for (let i = 0; i < 20 && !/\/viewer\//i.test(this.page.url()); i++) {
       await this.page.evaluate((src: string) => {
         const re = new RegExp(src, 'i');
         const btn = Array.from(document.querySelectorAll('button, a')).find((b) =>
-          (b as HTMLElement).id === 'start-btn' || (b as HTMLElement).classList?.contains('banner-btn') ||
-          re.test((b.textContent || '').replace(/\s+/g, ' ').trim()));
+          (b as HTMLElement).offsetParent !== null && (
+            (b as HTMLElement).id === 'start-btn' || (b as HTMLElement).classList?.contains('banner-btn') ||
+            re.test((b.textContent || '').replace(/\s+/g, ' ').trim())));
         if (btn) (btn as HTMLElement).click();
       }, START_COURSE.source).catch(() => {});
       // poll fast so we enter /viewer/ the moment the course navigates

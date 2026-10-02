@@ -5,7 +5,7 @@ import { CoursePlayer } from './pages/course-player.page';
 import { fetchAnswerKey, quizIdFromUrl, type AnswerKey } from '../src/utils/answer-key';
 import { fetchRealAnswerKey, fetchKeyByDoId, captureApiHeaders } from './helpers/real-answer-key';
 import {
-  recordArtifact, saveArtifacts, resetArtifacts, doIdFromUrl, collectionIdFromUrl,
+  recordArtifact, saveArtifacts, resetArtifacts, doIdFromUrl, collectionIdFromUrl, artifacts,
 } from './helpers/artifact-log';
 import { START_COURSE, START_LEVEL, GO_HOME, COMPETENCY_ACHIEVED } from './helpers/labels';
 
@@ -194,8 +194,46 @@ test.describe(`Competency + Course — ${COMPETENCY} (fail: ${[...failLevels].jo
     await test.step('Verify the completed competency shows in the Passbook', async () => {
       await verifyPassbook(page, title, LEVELS);
     });
+
+    // ── The portal must have SAVED every level's course. The Passbook check above
+    //    only proves the competency is listed; a run whose courses were never
+    //    enrolled still passes it (seen on UAT: every course back at "Start",
+    //    My Courses Started (0) / Completed (0), the competency back at level 1).
+    //    So open each course this run completed and read what the portal shows. ──
+    await test.step('Verify every level course is saved as completed on the portal', async () => {
+      await verifyCoursesSaved(page);
+    });
   });
 });
+
+/**
+ * For every course this run reports as completed, open its overview page and
+ * read the banner button: a course the portal has saved as finished offers
+ * "Start Again" / "फिर से शुरू करें" (or shows 100%). "Start" means it never
+ * recorded the user at all; "Resume" means it is unfinished. Fails listing them.
+ */
+async function verifyCoursesSaved(page: any): Promise<void> {
+  const BASE = (process.env.BASE_URL ?? 'https://ekshamata.aastrika.org').replace(/\/+$/, '');
+  const ids = [...new Set(artifacts()
+    .filter((a) => a.kind === 'course' && /^completed/.test(a.outcome) && /^do_/.test(a.doId || ''))
+    .map((a) => `${a.level}|${a.doId}`))];
+  const seen = new Set<string>();
+  const notSaved: string[] = [];
+  for (const key of ids) {
+    const [level, doId] = key.split('|');
+    if (seen.has(doId)) continue; // one course can serve several levels
+    seen.add(doId);
+    await page.goto(`${BASE}/app/toc/${doId}/overview?primaryCategory=Course`).catch(() => {});
+    const banner = page.locator('.banner-btn:visible, #start-btn:visible').first();
+    await banner.waitFor({ state: 'visible', timeout: 20_000 }).catch(() => {});
+    const label = (await banner.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+    const body = (await page.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ');
+    const done = /again|फिर\s*से/i.test(label) || /\b100\s*%/.test(body);
+    console.log(`[C+C] L${level} course ${doId}: "${label || '(no button)'}" → ${done ? '✅ saved as completed' : '❌ NOT saved as completed'}`);
+    if (!done) notSaved.push(`L${level} ${doId} ("${label || 'no button'}")`);
+  }
+  expect(notSaved, `the portal did not save these courses as completed: ${notSaved.join(', ')}`).toEqual([]);
+}
 
 /**
  * Open the Competency dashboard → Passbook tab (via the header Competency nav —
