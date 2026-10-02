@@ -1,8 +1,8 @@
 {
-  "orgKey": "BNRC",
-  "designation": "ANM-Student-Bihar",
-  "email": "UAT-BNRC-ANM005@yopmail.com",
+  "orgKey": "SHSB",
+  "designation": "ANM-Bihar",
+  "email": "UAT-SHSB-ANM001@yopmail.com",
   "password": "Aastrika@123",
-  "userId": "1931d16c-efe4-4fe3-90ee-82b33900801a",
+  "userId": "16db0826-d478-4938-9836-d523410558e3",
   "env": "ekshamata-uat.aastrika.org"
 }
