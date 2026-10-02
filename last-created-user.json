@@ -1,8 +1,8 @@
 {
-  "orgKey": "DMHUP",
-  "designation": "ANM-Outreach-UP",
-  "email": "STAGE-DMHUP-ANM040@yopmail.com",
+  "orgKey": "BNRC",
+  "designation": "ANM-Student-Bihar",
+  "email": "UAT-BNRC-ANM005@yopmail.com",
   "password": "Aastrika@123",
-  "userId": "a6e5837e-635c-492f-b870-27448838f562",
-  "env": "ekshamata-staging.aastrika.org"
+  "userId": "1931d16c-efe4-4fe3-90ee-82b33900801a",
+  "env": "ekshamata-uat.aastrika.org"
 }

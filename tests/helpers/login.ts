@@ -19,12 +19,14 @@ export const BASE_URL = process.env.BASE_URL ?? 'https://ekshamata.aastrika.org'
 
 /**
  * Staging runs a different build: it does not carry the #emailOrMobile /
- * #login-username-password ids production uses. The looser selectors below are
- * scoped to staging ONLY — on production they could resolve to the wrong
- * element (locator.or() picks the first match in DOM ORDER, so a header search
- * box would win over the login field), and production works with its ids today.
+ * #login-username-password ids production uses. UAT (ekshamata-uat) runs that
+ * same build — its login failed on the missing id until it was included here.
+ * The looser selectors below are scoped to staging + UAT ONLY — on production
+ * they could resolve to the wrong element (locator.or() picks the first match in
+ * DOM ORDER, so a header search box would win over the login field), and
+ * production works with its ids today.
  */
-const IS_STAGING = /staging/i.test(BASE_URL);
+const IS_STAGING = /staging|(^|\/\/|-)uat\./i.test(BASE_URL);
 
 /** True once we have left the /public/login screen (logged in or on a gate). */
 const onLoginPage = (u: string) => /\/public\/login/.test(u);

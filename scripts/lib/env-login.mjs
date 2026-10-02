@@ -116,7 +116,8 @@ async function acceptTermsIfPresent(page) {
  * instead of the login field (locator.or() picks the first match in DOM order).
  */
 export async function loginWithPassword(page, baseUrl, email, password) {
-  const isStaging = /staging/i.test(baseUrl);
+  // Staging AND UAT run the login build without production's field ids.
+  const isStaging = /staging|(^|\/\/|-)uat\./i.test(baseUrl);
 
   // ── open the login screen ──
   await page.goto(`${baseUrl}/page/home`, { waitUntil: 'domcontentloaded' });

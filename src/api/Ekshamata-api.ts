@@ -50,10 +50,12 @@ export const STAGING_USERORG_UPDATE_URL =
 
 /**
  * UAT has the same gap as staging (no gateway route for the profile update), so
- * it needs its own userorg service address. Not known yet — set it in .env (and
- * as a GitHub secret) once the platform team provides it.
+ * the update goes to UAT's userorg service directly. Address provided by the
+ * platform team (2026-10-02); override with UAT_USERORG_UPDATE_URL if it moves.
  */
-export const UAT_USERORG_UPDATE_URL = (process.env.UAT_USERORG_UPDATE_URL || '').trim();
+export const UAT_USERORG_UPDATE_URL =
+  (process.env.UAT_USERORG_UPDATE_URL || '').trim()
+  || 'http://a81873cf50b6e4247859561220f6e108-300940392.ap-south-1.elb.amazonaws.com/userorg/private/user/v1/update';
 
 export function authHeaders(): Record<string, string> {
   // Staging has its own api_admin token; fall back to the prod one if unset.
@@ -213,17 +215,12 @@ export async function updateProfile(userId: string, profileDetails: any): Promis
   //             and the public /api/user/v1/update wants the user's own session)
   //   uat     — same as staging: the gateway route is a 404 and the public routes
   //             401 (even with the user's own token, checked 2026-10-01), so it
-  //             needs UAT's userorg service address in UAT_USERORG_UPDATE_URL.
+  //             goes to UAT's userorg service directly (UAT_USERORG_UPDATE_URL).
   const endpoints = IS_STAGING
     ? [STAGING_USERORG_UPDATE_URL, '/api/user/private/v1/update', '/api/user/v1/update']
     : IS_UAT
-      ? [...(UAT_USERORG_UPDATE_URL ? [UAT_USERORG_UPDATE_URL] : []), '/api/user/private/v1/update', '/api/user/v1/update']
+      ? [UAT_USERORG_UPDATE_URL, '/api/user/private/v1/update', '/api/user/v1/update']
       : ['/api/user/private/v1/update', '/api/user/v1/update'];
-  if (IS_UAT && !UAT_USERORG_UPDATE_URL) {
-    console.log('[api] ⚠️  UAT_USERORG_UPDATE_URL is not set — UAT exposes no gateway route for the');
-    console.log('      profile update, so it will be rejected. Ask the platform team for UAT\'s userorg');
-    console.log('      update URL (staging\'s is …elb.amazonaws.com/userorg/private/user/v1/update).');
-  }
 
   let lastError: unknown;
   for (const endpoint of endpoints) {
