@@ -65,8 +65,53 @@ const flag = (name, fallback) => {
 };
 const has = (name) => argv.includes(name);
 
-const URL_A = (flag('--a', 'https://ekshamata.aastrika.org') || '').replace(/\/+$/, '');
-const URL_B = (flag('--b', 'https://ekshamata-staging.aastrika.org') || '').replace(/\/+$/, '');
+// ── which two environments ─────────────────────────────────────────────
+// --a / --b take a name (prod, staging, uat) or a full URL. Without them, an
+// interactive terminal is ASKED; CI (no keyboard) keeps production vs staging.
+const ENVIRONMENTS = [
+  ['Production', 'https://ekshamata.aastrika.org'],
+  ['Staging', 'https://ekshamata-staging.aastrika.org'],
+  ['UAT', 'https://ekshamata-uat.aastrika.org'],
+];
+function resolveEnv(v) {
+  if (!v) return '';
+  if (/^https?:\/\//i.test(v)) return v.replace(/\/+$/, '');
+  if (/^\d+$/.test(v)) return (ENVIRONMENTS[Number(v) - 1] || [])[1] || '';
+  const s = v.toLowerCase().replace(/^prod$/, 'production');
+  return (ENVIRONMENTS.find(([n]) => n.toLowerCase().startsWith(s)) || [])[1] || '';
+}
+// ONE readline, read as a QUEUE of lines: rl.question() drops a line that arrives
+// before it is asked, so two answers pasted (or piped) together lost the second.
+let rl = null;
+let lines = null;
+async function askEnv(side, dflt) {
+  if (!rl) {
+    rl = (await import('node:readline')).createInterface({ input: process.stdin, terminal: false });
+    lines = rl[Symbol.asyncIterator]();
+  }
+  process.stdout.write(`   ${side} (Enter = ${dflt}) : `);
+  const { value } = await lines.next();
+  const answer = String(value ?? '').trim();
+  const url = resolveEnv(answer || dflt);
+  if (!url) { console.error(`   ✖ "${answer}" is not one of the environments (or a full https URL)`); process.exit(1); }
+  return url;
+}
+const interactive = process.stdin.isTTY && !process.env.CI;
+let URL_A = resolveEnv(flag('--a', ''));
+let URL_B = resolveEnv(flag('--b', ''));
+if ((flag('--a', '') && !URL_A) || (flag('--b', '') && !URL_B)) {
+  console.error(`✖ Unknown environment in --a/--b. Use prod, staging, uat, or a full URL.`); process.exit(1);
+}
+if ((!URL_A || !URL_B) && interactive) {
+  console.log('\n🌐 Compare which two environments?\n');
+  ENVIRONMENTS.forEach(([n, u], i) => console.log(`   ${i + 1}. ${n.padEnd(11)} ${u}`));
+  console.log('      (a number, a name, or a full https URL)\n');
+  if (!URL_A) URL_A = await askEnv('A — baseline        ', 'Production');
+  if (!URL_B) URL_B = await askEnv('B — the one to check', 'Staging');
+  rl?.close();
+}
+URL_A ||= ENVIRONMENTS[0][1];
+URL_B ||= ENVIRONMENTS[1][1];
 const LABEL_A = flag('--label-a', labelFor(URL_A));
 const LABEL_B = flag('--label-b', labelFor(URL_B));
 const WITH_AUTH = has('--auth');
