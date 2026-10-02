@@ -1,8 +1,8 @@
 {
-  "orgKey": "TESTBIHAR",
+  "orgKey": "PVTBIHAR",
   "designation": "ANM-BIHAR",
-  "email": "UAT-TESTBIHAR-ANM001@yopmail.com",
+  "email": "UAT-PVTBIHAR-ANM001@yopmail.com",
   "password": "Aastrika@123",
-  "userId": "18649bd9-3655-43ae-9a89-fe2d3cfe9249",
+  "userId": "ea5beb76-3024-4110-968d-0431ab369b6a",
   "env": "ekshamata-uat.aastrika.org"
 }

@@ -778,3 +778,4 @@
 2026-10-02T13:35:31.672Z | SHSB | ANM-Bihar | UAT-SHSB-ANM001@yopmail.com | Aastrika@123 | userId=16db0826-d478-4938-9836-d523410558e3 | env=ekshamata-uat.aastrika.org
 2026-10-02T13:42:38.368Z | SIHFWUP | Medical Officer-UP | UAT-SIHFWUP-MO001@yopmail.com | Aastrika@123 | userId=36ffcce7-f9b8-4ad8-8f07-1de01ded62a0 | env=ekshamata-uat.aastrika.org
 2026-10-02T13:43:01.428Z | TESTBIHAR | ANM-BIHAR | UAT-TESTBIHAR-ANM001@yopmail.com | Aastrika@123 | userId=18649bd9-3655-43ae-9a89-fe2d3cfe9249 | env=ekshamata-uat.aastrika.org
+2026-10-02T13:51:34.564Z | PVTBIHAR | ANM-BIHAR | UAT-PVTBIHAR-ANM001@yopmail.com | Aastrika@123 | userId=ea5beb76-3024-4110-968d-0431ab369b6a | env=ekshamata-uat.aastrika.org

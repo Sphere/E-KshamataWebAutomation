@@ -1,5 +1,6 @@
 /**
- * Every role's HOMEPAGE, production vs staging, in one command and one sheet.
+ * Every role's HOMEPAGE, environment vs environment (production, staging, UAT),
+ * in one command and one sheet.
  * ──────────────────────────────────────────────────────────────────────────
  * Walks all 19 roles in src/config/orgs.ts. For each one it signs in on BOTH
  * environments — as that role's own account on each, because the two backends
@@ -9,6 +10,8 @@
  *   npm run compare:orgs                 every role
  *   npm run compare:orgs -- --org MP     just that org's roles
  *   npm run compare:orgs -- --headless   do not show the browsers
+ *   npm run compare:orgs -- --a prod --b uat   skip the environment question
+ *   npm run compare:orgs -- --create-missing   create accounts a role lacks, without asking
  *
  * There are no option prompts: the visual threshold is 0.5%, the browsers are
  * visible, every login is fresh, and the report opens at the end. Pass
@@ -41,10 +44,57 @@ const flag = (name, fallback) => {
 };
 const has = (name) => argv.includes(name);
 
-const URL_A = (flag('--a', 'https://ekshamata.aastrika.org') || '').replace(/\/+$/, '');
-const URL_B = (flag('--b', 'https://ekshamata-staging.aastrika.org') || '').replace(/\/+$/, '');
-const LABEL_A = 'Production';
-const LABEL_B = 'Staging';
+// ── which two environments ─────────────────────────────────────────────
+// --a / --b take a name (prod, staging, uat) or a full URL. Without them, an
+// interactive terminal is ASKED; CI (no keyboard) keeps production vs staging.
+const ENVIRONMENTS = [
+  ['Production', 'https://ekshamata.aastrika.org'],
+  ['Staging', 'https://ekshamata-staging.aastrika.org'],
+  ['UAT', 'https://ekshamata-uat.aastrika.org'],
+];
+function resolveEnv(v) {
+  if (!v) return '';
+  if (/^https?:\/\//i.test(v)) return v.replace(/\/+$/, '');
+  if (/^\d+$/.test(v)) return (ENVIRONMENTS[Number(v) - 1] || [])[1] || '';
+  const s = v.toLowerCase().replace(/^prod$/, 'production');
+  return (ENVIRONMENTS.find(([n]) => n.toLowerCase().startsWith(s)) || [])[1] || '';
+}
+// ONE readline, read as a QUEUE of lines: rl.question() drops a line that arrives
+// before it is asked, so two answers pasted (or piped) together lost the second.
+let rl = null;
+let lines = null;
+async function askEnv(side, dflt) {
+  if (!rl) {
+    rl = (await import('node:readline')).createInterface({ input: process.stdin, terminal: false });
+    lines = rl[Symbol.asyncIterator]();
+  }
+  process.stdout.write(`   ${side} (Enter = ${dflt}) : `);
+  const { value } = await lines.next();
+  const answer = String(value ?? '').trim();
+  const url = resolveEnv(answer || dflt);
+  if (!url) { console.error(`   ✖ "${answer}" is not one of the environments (or a full https URL)`); process.exit(1); }
+  return url;
+}
+const interactive = process.stdin.isTTY && !process.env.CI;
+let URL_A = resolveEnv(flag('--a', ''));
+let URL_B = resolveEnv(flag('--b', ''));
+if ((flag('--a', '') && !URL_A) || (flag('--b', '') && !URL_B)) {
+  console.error(`✖ Unknown environment in --a/--b. Use prod, staging, uat, or a full URL.`); process.exit(1);
+}
+if ((!URL_A || !URL_B) && interactive) {
+  console.log('\n🌐 Compare which two environments?\n');
+  ENVIRONMENTS.forEach(([n, u], i) => console.log(`   ${i + 1}. ${n.padEnd(11)} ${u}`));
+  console.log('      (a number, a name, or a full https URL)\n');
+  if (!URL_A) URL_A = await askEnv('A — baseline        ', 'Production');
+  if (!URL_B) URL_B = await askEnv('B — the one to check', 'Staging');
+  rl?.close();
+}
+URL_A ||= ENVIRONMENTS[0][1];
+URL_B ||= ENVIRONMENTS[1][1];
+// Labels follow the chosen environments (Production / Staging / UAT).
+const labelOf = (u) => (ENVIRONMENTS.find(([, x]) => x === u) || [new URL(u).hostname])[0];
+const LABEL_A = labelOf(URL_A);
+const LABEL_B = labelOf(URL_B);
 const THRESHOLD = Number(flag('--threshold', '0.5'));
 const HEADED = !has('--headless');
 const OPEN = !has('--no-open');
@@ -86,6 +136,41 @@ const roles = allRoles().filter((r) => !ONLY_ORG || r.org === ONLY_ORG);
 if (!roles.length) {
   console.error(`\n✖ No roles matched --org ${ONLY_ORG}.\n`);
   process.exit(1);
+}
+
+// ── roles with no account on a chosen environment ──────────────────────
+// Each backend has its own accounts. A newer environment (UAT) starts with few,
+// and a role with no account can only be reported as blocked — so offer to
+// create the missing ones first (tests/create-env-user.spec.ts, one per role).
+// --create-missing does it without asking; CI never asks and never creates.
+const missing = [];
+for (const [url, label] of [[URL_A, LABEL_A], [URL_B, LABEL_B]]) {
+  for (const r of roles) if (!accountsFor(url, r.org, r.designation).length) missing.push({ url, label, ...r });
+}
+if (missing.length) {
+  console.log(`\n👤 ${missing.length} role(s) have no account yet:`);
+  for (const m of missing) console.log(`   ${m.label.padEnd(11)} ${m.org} / ${m.designation}`);
+  let create = has('--create-missing');
+  if (!create && process.stdin.isTTY && !process.env.CI) {
+    const rl = (await import('node:readline')).createInterface({ input: process.stdin, output: process.stdout });
+    const a = await new Promise((res) => rl.question(`   Create them now? (~20s each)  [Y/n] : `, (x) => { rl.close(); res(x.trim()); }));
+    create = !/^n/i.test(a);
+  }
+  if (create) {
+    const { spawnSync } = await import('node:child_process');
+    const cli = createRequire(import.meta.url).resolve('@playwright/test/cli');
+    for (const m of missing) {
+      process.stdout.write(`   creating ${m.label} ${m.org} / ${m.designation} … `);
+      const r = spawnSync(process.execPath, [cli, 'test', 'tests/create-env-user.spec.ts', '--project=Chrome', '--reporter=line'], {
+        cwd: ROOT, encoding: 'utf-8',
+        env: { ...process.env, BASE_URL: m.url, CREATE_ORG: m.org, CREATE_DESIGNATION: m.designation, CI: 'true', PW_TEST_HTML_REPORT_OPEN: 'never' },
+      });
+      const made = (r.stdout.match(/\[create\] ✅ (\S+@\S+)/) || [])[1];
+      console.log(made ? `✅ ${made}` : '❌ failed (that role will show as blocked)');
+    }
+  } else {
+    console.log('   Skipped — those roles will show as blocked. (--create-missing creates them.)');
+  }
 }
 
 const startedAt = new Date();
