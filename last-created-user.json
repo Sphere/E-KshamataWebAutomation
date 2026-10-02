@@ -1,8 +1,8 @@
 {
-  "orgKey": "SHSB",
-  "designation": "ANM-Bihar",
-  "email": "UAT-SHSB-ANM001@yopmail.com",
+  "orgKey": "TESTBIHAR",
+  "designation": "ANM-BIHAR",
+  "email": "UAT-TESTBIHAR-ANM001@yopmail.com",
   "password": "Aastrika@123",
-  "userId": "16db0826-d478-4938-9836-d523410558e3",
+  "userId": "18649bd9-3655-43ae-9a89-fe2d3cfe9249",
   "env": "ekshamata-uat.aastrika.org"
 }
