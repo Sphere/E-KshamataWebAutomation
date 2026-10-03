@@ -43,7 +43,12 @@ export class CoursePlayer {
     if (!/\/viewer\//i.test(this.page.url())
       && await banner.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true, () => false)) {
       const label = (await banner.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
-      const notEnrolledYet = !/resume|again|continue|जारी|फिर\s*से/i.test(label);
+      // Only a plain START means "not enrolled yet". Every other wording — Resume,
+      // Start Again, जारी रखें, फिर से शुरू करें, दोबारा शुरू करें ("start again",
+      // which broke a re-opened level-4 course) — is an already-enrolled course,
+      // so no enrol call is expected.
+      const notEnrolledYet = /^(start|start learning|start course|शुरु करो|शुरू करो|शुरू करें|कोर्स शुरू करें|पाठ्यक्रम शुरू करें)$/i.test(label)
+        && !/again|resume|continue|जारी|फिर\s*से|दोबारा|पुनः/i.test(label);
       const enrol = this.page.waitForResponse(
         (r) => /\/course\/v1\/enrol\b/.test(r.url()) && r.request().method() === 'POST',
         { timeout: 20_000 },
@@ -370,7 +375,71 @@ export class CoursePlayer {
   }
 
   /** Walk every module to completion (never revisiting a finished one). */
+  /**
+   * The portal's own record of a course for the signed-in user: enrolment status
+   * (2 = completed) and completion %, from the call My Courses makes. Read in the
+   * page (its session authorises it). null when it can't be read.
+   */
+  async enrolmentOf(courseId: string): Promise<{ status: number; pct: number } | null> {
+    return this.page.evaluate(async (id: string) => {
+      try {
+        let userId = localStorage.getItem('userUUID') || '';
+        if (!userId) {
+          const pb = await fetch('/apis/proxies/v8/user/v1/passbook', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ request: { typeName: 'competency' } }),
+          }).then((r) => r.json());
+          userId = pb?.result?.content?.[0]?.userId || '';
+        }
+        if (!userId) return null;
+        const r = await fetch(`/apis/proxies/v8/learner/course/v1/user/enrollment/list/${userId}`);
+        if (!r.ok) return null;
+        const c = ((await r.json())?.result?.courses || []).find((x: any) => (x.courseId || x.contentId) === id);
+        return c ? { status: Number(c.status), pct: Number(c.completionPercentage ?? 0) } : { status: -1, pct: 0 };
+      } catch { return null; }
+    }, courseId).catch(() => null);
+  }
+
+  /**
+   * Play a course until the PORTAL records it complete. One pass through the
+   * player is not proof: a course "finished" after 1 of its modules on UAT and
+   * its competency level was never credited. So after each pass the enrolment
+   * record is read; below 100% the course page is re-opened (same batch, so the
+   * competency flow keeps its context), Resume is pressed, and play continues —
+   * up to 3 passes. Returns the number of modules handled in total.
+   */
   async completeCourse(maxModules = 60, label = 'course'): Promise<number> {
+    // Where we came in — the course page WITH its batch/competency query. In the
+    // competency flow every level's course runs in its own batch, so a plain
+    // course link would land on a different (default) batch.
+    let tocUrl = /\/app\/toc\//.test(this.page.url()) ? this.page.url() : '';
+    let total = 0;
+    for (let pass = 1; pass <= 3; pass++) {
+      if (pass > 1) {
+        await this.page.goto(tocUrl).catch(() => {});
+        await this.page.waitForLoadState('domcontentloaded').catch(() => {});
+      }
+      total += await this.playOnce(maxModules, label);
+      const courseId = (this.page.url().match(/[?&]collectionId=([^&]+)/) || [])[1]
+        || (tocUrl.match(/\/app\/toc\/([^/?]+)/) || [])[1] || '';
+      if (!tocUrl && courseId) {
+        const batch = (this.page.url().match(/[?&]batchId=([^&]+)/) || [])[1];
+        tocUrl = `${new URL(this.page.url()).origin}/app/toc/${courseId}/overview?primaryCategory=Course${batch ? `&batchId=${batch}` : ''}`;
+      }
+      const rec = courseId ? await this.enrolmentOf(courseId) : null;
+      if (!rec) { console.log(`[${label}] ⚠️  could not read the course's completion from the portal — moving on`); break; }
+      if (rec.status === 2 || rec.pct >= 100) {
+        console.log(`[${label}] ✔ portal records the course complete (${rec.pct}%)`);
+        break;
+      }
+      console.log(`[${label}] ⚠️  portal shows the course at ${rec.pct}% (status ${rec.status}) after pass ${pass} — ${pass < 3 ? 'resuming to finish it' : 'still incomplete after 3 passes'}`);
+      if (pass === 3 || !tocUrl) break;
+    }
+    return total;
+  }
+
+  /** One pass through the player: enter, then handle each module until the course ends. */
+  private async playOnce(maxModules: number, label: string): Promise<number> {
     const tEnter = Date.now();
     await this.startCourse();
     console.log(`[${label}] ⏱ entered player  [+${((Date.now() - tEnter) / 1000).toFixed(1)}s]  ${this.page.url()}`);

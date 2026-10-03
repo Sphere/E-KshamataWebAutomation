@@ -176,18 +176,27 @@ test.describe(`Competency + Course — ${COMPETENCY} (fail: ${[...failLevels].jo
       //    So: if the passbook doesn't list this level, it was not a level —
       //    re-open the competency (it opens whatever level the portal says is
       //    next) and handle the SAME level number again.
+      //    The NEXT level is always the portal's: highest credited + 1 — the level
+      //    the home card's button opens. Our counter is re-synced to it every
+      //    time, so it can never call the level-4 course "Level 5" again.
       const credited = await creditedLevels(page);
+      const portalNext = credited ? Math.max(0, ...credited) + 1 : null;
       if (credited && !credited.has(level)) {
-        const tries = (redoCount.get(level) ?? 0) + 1;
-        redoCount.set(level, tries);
+        const tries = (redoCount.get(portalNext!) ?? 0) + 1;
+        redoCount.set(portalNext!, tries);
         console.log(`[C+C] ⚠️  the portal has NOT credited Level ${level} (passbook: ${[...credited].sort((a, b) => a - b).join(',') || 'none'})`
-          + ` — not a level yet; re-opening and handling Level ${level} again (${tries}/3)`);
-        expect(tries, `Level ${level} was handled ${tries} times but the portal never credited it`).toBeLessThan(3);
+          + ` — the portal's next level is ${portalNext}; re-opening it and handling Level ${portalNext} (${tries}/3)`);
+        expect(tries, `Level ${portalNext} was handled ${tries} times but the portal never credited it`).toBeLessThan(3);
         if ((await reopenCompetency(page, home, COMPETENCY)) === 'completed') break;
-        level--;
+        level = portalNext! - 1; // the loop's ++ lands on portalNext
         continue;
       }
-      if (credited) console.log(`[C+C] ✔ portal credited Level ${level} (passbook: ${[...credited].sort((a, b) => a - b).join(',')})`);
+      if (credited) {
+        console.log(`[C+C] ✔ portal credited Level ${level} (passbook: ${[...credited].sort((a, b) => a - b).join(',')}) — next is Level ${portalNext}`);
+        // The portal can also be AHEAD (one course serving several levels):
+        // continue from its next level, not ours.
+        if (portalNext! - 1 > level) level = portalNext! - 1;
+      }
 
       // A single course can be mapped to EVERY level — finishing it achieves the
       // whole competency ("Competency Achieved"), so stop instead of chasing more.
