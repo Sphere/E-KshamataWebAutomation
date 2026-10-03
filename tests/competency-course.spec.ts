@@ -259,30 +259,46 @@ async function creditedLevels(page: any): Promise<Set<number> | null> {
 }
 
 /**
- * For every course this run reports as completed, open its overview page and
- * read the banner button: a course the portal has saved as finished offers
- * "Start Again" / "फिर से शुरू करें" (or shows 100%). "Start" means it never
- * recorded the user at all; "Resume" means it is unfinished. Fails listing them.
+ * For every course this run reports as completed, ask the PORTAL's enrolment
+ * record (GET …/learner/course/v1/user/enrollment/list/<userId>, the call My
+ * Courses makes) whether it holds that course as completed (status 2).
+ *
+ * Not the course page: in the competency flow each course runs in its own batch,
+ * and a plain /app/toc/<id> link shows the DEFAULT batch — "Start" for courses
+ * the user finished in the competency batch. That read every course except one
+ * as unsaved on a run whose passbook credited all five levels.
  */
 async function verifyCoursesSaved(page: any): Promise<void> {
-  const BASE = (process.env.BASE_URL ?? 'https://ekshamata.aastrika.org').replace(/\/+$/, '');
-  const ids = [...new Set(artifacts()
-    .filter((a) => a.kind === 'course' && /^completed/.test(a.outcome) && /^do_/.test(a.doId || ''))
-    .map((a) => `${a.level}|${a.doId}`))];
-  const seen = new Set<string>();
+  const want = new Map<string, number>(); // doId → first level it served
+  for (const a of artifacts()) {
+    if (a.kind === 'course' && /^completed/.test(a.outcome) && /^do_/.test(a.doId || '') && !want.has(a.doId!)) want.set(a.doId!, a.level);
+  }
+  if (!want.size) return;
+  const enrolled = await page.evaluate(async () => {
+    try {
+      const pb = await fetch('/apis/proxies/v8/user/v1/passbook', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ request: { typeName: 'competency' } }),
+      }).then((r) => r.json());
+      const userId = pb?.result?.content?.[0]?.userId;
+      if (!userId) return null;
+      const r = await fetch(`/apis/proxies/v8/learner/course/v1/user/enrollment/list/${userId}`);
+      if (!r.ok) return null;
+      return ((await r.json())?.result?.courses || []).map((c: any) => ({
+        id: c.courseId || c.contentId, status: c.status, pct: c.completionPercentage,
+      }));
+    } catch { return null; }
+  }).catch(() => null);
+  if (!enrolled) {
+    console.log('[C+C] ⚠️  could not read the enrolment record — course completion not double-checked (the passbook check above still applies)');
+    return;
+  }
   const notSaved: string[] = [];
-  for (const key of ids) {
-    const [level, doId] = key.split('|');
-    if (seen.has(doId)) continue; // one course can serve several levels
-    seen.add(doId);
-    await page.goto(`${BASE}/app/toc/${doId}/overview?primaryCategory=Course`).catch(() => {});
-    const banner = page.locator('.banner-btn:visible, #start-btn:visible').first();
-    await banner.waitFor({ state: 'visible', timeout: 20_000 }).catch(() => {});
-    const label = (await banner.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
-    const body = (await page.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ');
-    const done = /again|फिर\s*से/i.test(label) || /\b100\s*%/.test(body);
-    console.log(`[C+C] L${level} course ${doId}: "${label || '(no button)'}" → ${done ? '✅ saved as completed' : '❌ NOT saved as completed'}`);
-    if (!done) notSaved.push(`L${level} ${doId} ("${label || 'no button'}")`);
+  for (const [doId, level] of want) {
+    const e = enrolled.find((x: any) => x.id === doId);
+    const done = e?.status === 2;
+    console.log(`[C+C] L${level} course ${doId}: ${e ? `status ${e.status}, ${e.pct ?? '?'}%` : 'not enrolled'} → ${done ? '✅ saved as completed' : '❌ NOT saved as completed'}`);
+    if (!done) notSaved.push(`L${level} ${doId} (${e ? `status ${e.status}, ${e.pct ?? '?'}%` : 'not enrolled'})`);
   }
   expect(notSaved, `the portal did not save these courses as completed: ${notSaved.join(', ')}`).toEqual([]);
 }

@@ -873,3 +873,5 @@
 2026-10-02T17:06:37.451Z | DMHFWUP | ANM_UP | UAT-DMHFWUP-ANM_UP004@yopmail.com | Aastrika@123 | userId=06f3bddc-585e-46e2-bcc8-3d8717e76122 | env=ekshamata-uat.aastrika.org
 2026-10-02T17:10:54.390Z | DMHFWUP | ANM_UP | UAT-DMHFWUP-ANM_UP005@yopmail.com | Aastrika@123 | userId=0d7b2962-5e5f-4c7a-967b-928514e0a597 | env=ekshamata-uat.aastrika.org
 2026-10-02T17:11:36.100Z | DMHFWUP | ANM_UP | UAT-DMHFWUP-ANM_UP006@yopmail.com | Aastrika@123 | userId=3c0ecf1e-6468-4f1b-92e2-988f6e7b1562 | env=ekshamata-uat.aastrika.org
+2026-10-03T01:46:32.846Z | BNRC | ANM-Student-Bihar | UAT-BNRC-ANM011@yopmail.com | Aastrika@123 | userId=58a654a3-1277-4d63-b942-b6f8af40d235 | env=ekshamata-uat.aastrika.org
+2026-10-03T01:47:38.905Z | BNRC | ANM-Student-Bihar | UAT-BNRC-ANM012@yopmail.com | Aastrika@123 | userId=79b21d96-b9dd-4288-a16c-927049c75052 | env=ekshamata-uat.aastrika.org
