@@ -13,6 +13,17 @@ name: Daily Prod vs Staging (e-Kshamata)
 # user. BNRC users get the English interface; some orgs default to Hindi, which
 # the English-labelled specs don't read.
 on:
+  # Fired by the deploy pipeline (Jenkins) right after a successful deploy — the
+  # same mechanism the Sphere repo uses, so one deploy can start both suites:
+  #   curl -X POST -H "Authorization: token $GH_PAT" \
+  #     https://api.github.com/repos/Santhoshshivaprakash/E-Kshamata-Web-Automation/dispatches \
+  #     -d '{"event_type":"prod-deployed"}'
+  #
+  # Add client_payload.environments to choose what runs, e.g.
+  #   -d '{"event_type":"uat-deployed","client_payload":{"environments":"uat only"}}'
+  # Without it, a dispatch behaves like the scheduled run (production + staging).
+  repository_dispatch:
+    types: [prod-deployed, staging-deployed, uat-deployed]
   schedule:
     - cron: '30 3 * * *' # 03:30 UTC = 09:00 IST, daily (GitHub may delay a few min)
   workflow_dispatch:       # "Run workflow" button in the Actions tab
@@ -25,6 +36,7 @@ on:
           - production + staging
           - uat only
           - production + staging + uat
+          - production only
 
 concurrency:
   group: ekshamata-daily
@@ -35,12 +47,14 @@ jobs:
   # BNRC user on EACH side (--org BNRC creates the pair when it needs one — hence
   # the provisioning tokens).
   compare:
+    # Nothing to compare production with when it's the only environment picked.
+    if: ${{ (github.event.client_payload.environments || inputs.environments) != 'production only' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        target: ${{ fromJSON(inputs.environments == 'uat only' && '["uat"]' || inputs.environments == 'production + staging + uat' && '["staging","uat"]' || '["staging"]') }}
+        target: ${{ fromJSON((github.event.client_payload.environments || inputs.environments) == 'uat only' && '["uat"]' || (github.event.client_payload.environments || inputs.environments) == 'production + staging + uat' && '["staging","uat"]' || '["staging"]') }}
     name: compare (production vs ${{ matrix.target }})
     env:
       SPHERE_API_TOKEN: ${{ secrets.SPHERE_API_TOKEN }}
@@ -86,7 +100,7 @@ jobs:
     strategy:
       fail-fast: false   # a failure on one environment doesn't cancel the other
       matrix:
-        env: ${{ fromJSON(inputs.environments == 'uat only' && '["uat"]' || inputs.environments == 'production + staging + uat' && '["production","staging","uat"]' || '["production","staging"]') }}
+        env: ${{ fromJSON((github.event.client_payload.environments || inputs.environments) == 'production only' && '["production"]' || (github.event.client_payload.environments || inputs.environments) == 'uat only' && '["uat"]' || (github.event.client_payload.environments || inputs.environments) == 'production + staging + uat' && '["production","staging","uat"]' || '["production","staging"]') }}
     name: daily-journey (${{ matrix.env }})
     env:
       BASE_URL: ${{ matrix.env == 'production' && 'https://ekshamata.aastrika.org' || matrix.env == 'staging' && 'https://ekshamata-staging.aastrika.org' || 'https://ekshamata-uat.aastrika.org' }}
@@ -156,7 +170,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        env: ${{ fromJSON(inputs.environments == 'uat only' && '["uat"]' || inputs.environments == 'production + staging + uat' && '["production","staging","uat"]' || '["production","staging"]') }}
+        env: ${{ fromJSON((github.event.client_payload.environments || inputs.environments) == 'production only' && '["production"]' || (github.event.client_payload.environments || inputs.environments) == 'uat only' && '["uat"]' || (github.event.client_payload.environments || inputs.environments) == 'production + staging + uat' && '["production","staging","uat"]' || '["production","staging"]') }}
     name: daily-orgs (${{ matrix.env }})
     env:
       BASE_URL: ${{ matrix.env == 'production' && 'https://ekshamata.aastrika.org' || matrix.env == 'staging' && 'https://ekshamata-staging.aastrika.org' || 'https://ekshamata-uat.aastrika.org' }}

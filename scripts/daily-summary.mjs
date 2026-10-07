@@ -267,7 +267,10 @@ if (differences.length) {
 // labelled from the report's own environment names.
 if (!cmps.length) {
   html += h2('Environment compare');
-  html += `<p style="color:${C.err}">The compare report is missing — the compare job may have failed.</p>`;
+  html += JOBS.compare?.result === 'skipped'
+    // "production only" runs have nothing to compare production with.
+    ? `<p style="color:${C.muted}">Not run — only one environment was selected.</p>`
+    : `<p style="color:${C.err}">The compare report is missing — the compare job may have failed.</p>`;
 }
 for (const { json: cmp, a, b } of cmps) {
   html += h2(`${a} vs ${b} — compared pages`);
