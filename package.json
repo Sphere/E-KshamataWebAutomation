@@ -9,6 +9,8 @@
     "test:all": "playwright test",
     "smoke": "playwright test tests/smoke.spec.ts --project=Chrome --headed",
     "login": "playwright test tests/login.spec.ts --project=Chrome --headed",
+    "forgot": "node scripts/run-forgot.mjs",
+    "test:forgot": "cross-env BASE_URL=https://ekshamata-staging.aastrika.org playwright test tests/forgot-password.spec.ts --project=Chrome --headed",
     "run:stepper": "node scripts/run-stepper.mjs",
     "run:stepper:direct": "cross-env BASE_URL=https://ekshamata.aastrika.org playwright test tests/competency-stepper.spec.ts --project=Chrome --headed",
     "//compare": "── Environment comparison (prod vs staging, side by side) ──",

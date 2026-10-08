@@ -18,6 +18,13 @@
  *   npm run create:pair -- BNRC --prod-only | --stage-only
  *   npm run create:pair -- MP --role CHO-MP
  *
+ * The default pair is production + staging, but any two (or more) environments
+ * can be named explicitly — the comparison runner uses this to mint the pair on
+ * exactly the two environments it is comparing (e.g. production + UAT):
+ *
+ *   npm run create:pair -- BNRC --env https://ekshamata.aastrika.org \
+ *                                --env https://ekshamata-uat.aastrika.org
+ *
  * The environments run one after the other: they share created-users.txt and
  * email-counters.json, and two writers would interleave their lines.
  */
@@ -45,6 +52,22 @@ const ENVIRONMENTS = [
   ['Production', 'https://ekshamata.aastrika.org'],
   ['Staging', 'https://ekshamata-staging.aastrika.org'],
 ];
+
+/** A display name for any environment URL, known or not. */
+const NAME_BY_HOST = {
+  'ekshamata.aastrika.org': 'Production',
+  'ekshamata-staging.aastrika.org': 'Staging',
+  'ekshamata-uat.aastrika.org': 'UAT',
+  localhost: 'Localhost',
+  '127.0.0.1': 'Localhost',
+};
+function nameFor(url) {
+  const host = new URL(url).hostname;
+  if (NAME_BY_HOST[host]) return NAME_BY_HOST[host];
+  if (/-uat\./i.test(host)) return 'UAT';
+  if (/staging/i.test(host)) return 'Staging';
+  return host;
+}
 
 function ask(query) {
   return new Promise((res) => {
@@ -97,8 +120,18 @@ if (role && !orgs[org].includes(role)) {
 }
 
 // ── which environments ──
-const targets = ENVIRONMENTS.filter(([name]) =>
-  (name === 'Production' && !has('--stage-only')) || (name === 'Staging' && !has('--prod-only')));
+// Explicit --env URLs win: the comparison runner passes the exact two it is
+// comparing, so the pair lands on THOSE (e.g. production + UAT) rather than on
+// the default production + staging. --prod-only / --stage-only still narrow the
+// default pair when no --env is given.
+const envUrls = [];
+for (let i = 0; i < argv.length; i++) {
+  if (argv[i] === '--env' && argv[i + 1]) envUrls.push(argv[++i]);
+}
+const targets = envUrls.length
+  ? envUrls.map((u) => [nameFor(u), u.replace(/\/+$/, '')])
+  : ENVIRONMENTS.filter(([name]) =>
+      (name === 'Production' && !has('--stage-only')) || (name === 'Staging' && !has('--prod-only')));
 
 const cli = require.resolve('@playwright/test/cli');
 

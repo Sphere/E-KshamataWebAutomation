@@ -142,12 +142,16 @@ function accountFor(org, baseUrl) {
   return createdUsersOn(baseUrl).find((u) => (u.orgKey || '').toLowerCase() === org.toLowerCase()) || null;
 }
 
-/** Provision a pair (or the missing half) and wait for it. */
-function createPair(org, { prodOnly = false, stageOnly = false } = {}) {
+/**
+ * Provision a pair on the two environments being compared and wait for it.
+ *
+ * The exact URLs are passed through so the pair lands on the chosen sides —
+ * production + UAT, staging + UAT, etc. — and not on create-user-pair's default
+ * production + staging.
+ */
+function createPair(org, urlA, urlB) {
   return new Promise((res) => {
-    const args = [resolve(__dirname, 'create-user-pair.mjs'), org];
-    if (prodOnly) args.push('--prod-only');
-    if (stageOnly) args.push('--stage-only');
+    const args = [resolve(__dirname, 'create-user-pair.mjs'), org, '--env', urlA, '--env', urlB];
     const child = spawn(process.execPath, args, { cwd: ROOT, stdio: 'inherit' });
     child.on('exit', (code) => res(code ?? 1));
   });
@@ -166,7 +170,11 @@ async function pickOrg(urlA, urlB) {
   orgs.forEach((k, i) => {
     const a = accountFor(k, urlA);
     const b = accountFor(k, urlB);
-    const mark = a && b ? '✔ pair ready' : a ? 'production only' : b ? 'staging only' : '— no accounts yet';
+    const mark = a && b
+      ? '✔ pair ready'
+      : a ? `${new URL(urlA).hostname} only`
+      : b ? `${new URL(urlB).hostname} only`
+      : '— no accounts yet';
     console.log(`  ${String(i + 1).padStart(2)}. ${k.padEnd(12)} ${mark}`);
   });
 
@@ -225,7 +233,7 @@ async function pickOrg(urlA, urlB) {
     // Both sides every time: minting only the missing half leaves the other on a
     // stale account, which is how a run ends up signed in as an account that can
     // no longer log in.
-    const code = await createPair(org);
+    const code = await createPair(org, urlA, urlB);
     const a = accountFor(org, urlA);
     const b = accountFor(org, urlB);
 

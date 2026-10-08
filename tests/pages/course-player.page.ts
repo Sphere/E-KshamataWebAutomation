@@ -47,8 +47,21 @@ export class CoursePlayer {
       // Start Again, जारी रखें, फिर से शुरू करें, दोबारा शुरू करें ("start again",
       // which broke a re-opened level-4 course) — is an already-enrolled course,
       // so no enrol call is expected.
-      const notEnrolledYet = /^(start|start learning|start course|शुरु करो|शुरू करो|शुरू करें|कोर्स शुरू करें|पाठ्यक्रम शुरू करें)$/i.test(label)
+      let notEnrolledYet = /^(start|start learning|start course|शुरु करो|शुरू करो|शुरू करें|कोर्स शुरू करें|पाठ्यक्रम शुरू करें)$/i.test(label)
         && !/again|resume|continue|जारी|फिर\s*से|दोबारा|पुनः/i.test(label);
+      // The label can't be trusted on its own: a course already enrolled at 50%
+      // still showed "शुरु करो" when re-opened to finish it, and clicking it just
+      // resumes (no enrol call). So a "Start" label is confirmed against the
+      // portal's enrolment record — only a course the user is NOT enrolled in
+      // must produce the enrol call.
+      if (notEnrolledYet) {
+        const courseId = (this.page.url().match(/\/app\/toc\/([^/?]+)/) || [])[1] || '';
+        const rec = courseId ? await this.enrolmentOf(courseId) : null;
+        if (rec && rec.status >= 0) {
+          console.log(`   ↻ "${label}" but already enrolled (${rec.pct}%) — resuming, no enrol call expected`);
+          notEnrolledYet = false;
+        }
+      }
       const enrol = this.page.waitForResponse(
         (r) => /\/course\/v1\/enrol\b/.test(r.url()) && r.request().method() === 'POST',
         { timeout: 20_000 },
@@ -414,12 +427,17 @@ export class CoursePlayer {
     // course link would land on a different (default) batch.
     let tocUrl = /\/app\/toc\//.test(this.page.url()) ? this.page.url() : '';
     let total = 0;
+    let done = new Set<string>();
     for (let pass = 1; pass <= 3; pass++) {
       if (pass > 1) {
         await this.page.goto(tocUrl).catch(() => {});
         await this.page.waitForLoadState('domcontentloaded').catch(() => {});
       }
-      total += await this.playOnce(maxModules, label);
+      // On a resume pass, skip what the portal already counts: the player starts
+      // from module 1 again, and re-playing finished modules wastes the pass on
+      // them — the unfinished one is what needs another go.
+      if (done.size) console.log(`[${label}] resuming — skipping ${done.size} module(s) the portal already counts as complete`);
+      total += await this.playOnce(maxModules, label, done);
       const courseId = (this.page.url().match(/[?&]collectionId=([^&]+)/) || [])[1]
         || (tocUrl.match(/\/app\/toc\/([^/?]+)/) || [])[1] || '';
       if (!tocUrl && courseId) {
@@ -434,18 +452,45 @@ export class CoursePlayer {
       }
       console.log(`[${label}] ⚠️  portal shows the course at ${rec.pct}% (status ${rec.status}) after pass ${pass} — ${pass < 3 ? 'resuming to finish it' : 'still incomplete after 3 passes'}`);
       if (pass === 3 || !tocUrl) break;
+      const batchId = (tocUrl.match(/[?&]batchId=([^&]+)/) || [])[1] || '';
+      done = await this.completedModules(courseId, batchId);
     }
     return total;
   }
 
-  /** One pass through the player: enter, then handle each module until the course ends. */
-  private async playOnce(maxModules: number, label: string): Promise<number> {
+  /**
+   * The modules of a course the portal counts as completed (content state 2) for
+   * the signed-in user in that batch — the per-module record behind the course %.
+   * Empty when it can't be read (then nothing is skipped).
+   */
+  async completedModules(courseId: string, batchId: string): Promise<Set<string>> {
+    const ids = await this.page.evaluate(async ({ courseId: c, batchId: b }) => {
+      try {
+        const userId = localStorage.getItem('userUUID') || '';
+        if (!userId || !b) return [];
+        const r = await fetch('/apis/proxies/v8/learner/course/v1/content/state/read', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ request: { userId, courseId: c, batchId: b, contentIds: [], fields: ['progress', 'score'] } }),
+        });
+        if (!r.ok) return [];
+        return ((await r.json())?.result?.contentList || []).filter((x: any) => Number(x.status) === 2).map((x: any) => x.contentId);
+      } catch { return []; }
+    }, { courseId, batchId }).catch(() => [] as string[]);
+    return new Set(ids);
+  }
+
+  /**
+   * One pass through the player: enter, then handle each module until the course
+   * ends. `alreadyDone` modules are skipped (the player moves past them).
+   * `maxModules` counts modules actually PLAYED, not skipped ones.
+   */
+  private async playOnce(maxModules: number, label: string, alreadyDone: Set<string> = new Set()): Promise<number> {
     const tEnter = Date.now();
     await this.startCourse();
     console.log(`[${label}] ⏱ entered player  [+${((Date.now() - tEnter) / 1000).toFixed(1)}s]  ${this.page.url()}`);
-    const seen = new Set<string>();
+    const seen = new Set<string>(alreadyDone);
     let processed = 0;
-    for (let i = 0; i < maxModules; i++) {
+    for (let i = 0; processed < maxModules && i < maxModules + alreadyDone.size + 10; i++) {
       const id = rid(this.page.url());
       if (!seen.has(id)) {
         const tMod = Date.now();
