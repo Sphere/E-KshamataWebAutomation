@@ -879,3 +879,13 @@
 2026-10-03T02:08:42.092Z | BNRC | ANM-Student-Bihar | UAT-BNRC-ANM014@yopmail.com | Aastrika@123 | userId=98f33203-3beb-49ba-bfe4-721ff53cf2da | env=ekshamata-uat.aastrika.org
 2026-10-03T02:29:11.264Z | BNRC | ANM-Student-Bihar | UAT-BNRC-ANM015@yopmail.com | Aastrika@123 | userId=746d3f2c-e801-4442-87da-19bd120cba4d | env=ekshamata-uat.aastrika.org
 2026-10-03T02:29:59.295Z | DMHFWUP | Staff Nurse | UAT-DMHFWUP-SN004@yopmail.com | Aastrika@123 | userId=c7e72d6f-b152-40e5-8572-aa5e51c5d01a | env=ekshamata-uat.aastrika.org
+2026-10-03T03:22:59.883Z | BNRC | ANM-Student-Bihar | UAT-BNRC-ANM016@yopmail.com | Aastrika@123 | userId=e8b50e72-16ec-421b-a137-496fff005e54 | env=ekshamata-uat.aastrika.org
+2026-10-03T03:24:47.680Z | BNRC | ANM-Student-Bihar | UAT-BNRC-ANM017@yopmail.com | Aastrika@123 | userId=3b09f168-97c1-4339-91b1-62a4f63c6fea | env=ekshamata-uat.aastrika.org
+2026-10-03T03:33:35.306Z | DMHFWUP | Staff Nurse | UAT-DMHFWUP-SN005@yopmail.com | Aastrika@123 | userId=1b4396d6-98ab-4e54-8f59-cf778900fb7e | env=ekshamata-uat.aastrika.org
+2026-10-05T06:48:24.882Z | BNRC | ANM-Student-Bihar | UAT-BNRC-ANM018@yopmail.com | Aastrika@123 | userId=11573a7a-bf1f-4c79-8f86-0d7f56186aa0 | env=ekshamata-uat.aastrika.org
+2026-10-05T07:50:45.643Z | SIHFWUP | Medical Officer-UP | SIHFWUP-MO106@yopmail.com | Aastrika@123 | userId=8583d7f0-2a83-49ae-b551-a067163c05a6 | env=ekshamata.aastrika.org
+2026-10-05T07:51:04.099Z | SIHFWUP | Medical Officer-UP | STAGE-SIHFWUP-MO048@yopmail.com | Aastrika@123 | userId=1b9dcfaa-fd11-4eec-81ef-2e57593c6b7c | env=ekshamata-staging.aastrika.org
+2026-10-05T08:45:06.775Z | DMHFWUP | ANM_UP | DMHFWUP-ANM_UP042@yopmail.com | Aastrika@123 | userId=ea527bce-7dfa-4bb4-8f40-d2c21a53023a | env=ekshamata.aastrika.org
+2026-10-05T08:45:25.976Z | DMHFWUP | ANM_UP | UAT-DMHFWUP-ANM_UP007@yopmail.com | Aastrika@123 | userId=7ef6b0e3-97dc-4377-8c6e-564f7274b867 | env=ekshamata-uat.aastrika.org
+2026-10-05T09:04:25.689Z | MP | ANM-MP | MP-ANM175@yopmail.com | Aastrika@123 | userId=21b2fc68-2fd3-49d2-996e-69a308158d7a | env=ekshamata.aastrika.org
+2026-10-05T09:04:47.605Z | MP | ANM-MP | UAT-MP-ANM004@yopmail.com | Aastrika@123 | userId=8d002b61-f919-44f4-ac84-8cd3823b308e | env=ekshamata-uat.aastrika.org
