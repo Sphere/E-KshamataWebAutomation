@@ -57,6 +57,16 @@ export const UAT_USERORG_UPDATE_URL =
   (process.env.UAT_USERORG_UPDATE_URL || '').trim()
   || 'http://a81873cf50b6e4247859561220f6e108-300940392.ap-south-1.elb.amazonaws.com/userorg/private/user/v1/update';
 
+/**
+ * Prod profile update goes to the userorg service directly: after the UAT→prod
+ * migration that ELB now serves production, and the /api gateway routes answer
+ * 401 (UNAUTHORIZED_USER) for the api_admin token. Override with
+ * PROD_USERORG_UPDATE_URL if the address changes.
+ */
+export const PROD_USERORG_UPDATE_URL =
+  (process.env.PROD_USERORG_UPDATE_URL || '').trim()
+  || 'http://a81873cf50b6e4247859561220f6e108-300940392.ap-south-1.elb.amazonaws.com/userorg/private/user/v1/update';
+
 export function authHeaders(): Record<string, string> {
   // Staging has its own api_admin token; fall back to the prod one if unset.
   // UAT has its own too, with NO fallback — a production token must never be
@@ -210,7 +220,9 @@ export async function updateProfile(userId: string, profileDetails: any): Promis
   const body = { request: { userId, profileDetails: details } };
 
   // Where the profile update lives differs per environment:
-  //   prod    — /api/user/private/v1/update behind the gateway
+  //   prod    — the userorg service directly (PROD_USERORG_UPDATE_URL): after the
+  //             UAT→prod migration the gateway routes 401 for the api_admin token,
+  //             so the direct userorg endpoint is tried first, gateway as fallback.
   //   staging — the userorg service directly (the gateway route is a 404 there,
   //             and the public /api/user/v1/update wants the user's own session)
   //   uat     — same as staging: the gateway route is a 404 and the public routes
@@ -220,7 +232,7 @@ export async function updateProfile(userId: string, profileDetails: any): Promis
     ? [STAGING_USERORG_UPDATE_URL, '/api/user/private/v1/update', '/api/user/v1/update']
     : IS_UAT
       ? [UAT_USERORG_UPDATE_URL, '/api/user/private/v1/update', '/api/user/v1/update']
-      : ['/api/user/private/v1/update', '/api/user/v1/update'];
+      : [PROD_USERORG_UPDATE_URL, '/api/user/private/v1/update', '/api/user/v1/update'];
 
   let lastError: unknown;
   for (const endpoint of endpoints) {

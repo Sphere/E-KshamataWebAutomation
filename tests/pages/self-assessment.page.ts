@@ -26,6 +26,13 @@ export class SelfAssessmentPage {
 
   get radios(): Locator { return this.page.locator('input.mdc-radio__native-control'); }
 
+  // DIAGNOSTIC: stems (+ their rendered options) of questions left UNANSWERED,
+  // accumulated across the quiz so completeAssessment can write them to the diag
+  // file. Lets us see exactly which question TYPES the engine misses.
+  public unansweredStems: Array<{ stem: string; rendered: string[] }> = [];
+  // DIAGNOSTIC: per-step element-type census (radio/checkbox/option/select/…).
+  public stepCensus: Array<Record<string, unknown>> = [];
+
   /**
    * Click "Start Now!" on the quiz intro (English or Hindi "अभी शुरू करें").
    *
@@ -62,7 +69,18 @@ export class SelfAssessmentPage {
   /** The original Start Now hunt, unchanged — just named so it can be re-run. */
   private async clickStartNowButtons(): Promise<void> {
     for (let i = 0; i < 6; i++) {
-      if (await this.radios.first().isVisible({ timeout: 1_000 }).catch(() => false)) break;
+      // Break only once the quiz has GENUINELY started: a question input (radio OR
+      // checkbox) is visible AND the Start Now intro is gone. The old check broke
+      // as soon as any radio was visible — so on the SECOND assessment a stale
+      // radio left in the DOM from the first made it skip clicking Start Now, and
+      // a checkbox-first assessment was mis-read too. While Start Now shows, we
+      // have NOT started, whatever inputs linger.
+      const startNowVisible = await this.page.getByRole('button', { name: START_NOW })
+        .first().isVisible({ timeout: 500 }).catch(() => false);
+      const questionVisible = await this.page
+        .locator('input.mdc-radio__native-control, input[type="radio"], input.mdc-checkbox__native-control, input[type="checkbox"]')
+        .first().isVisible({ timeout: 500 }).catch(() => false);
+      if (!startNowVisible && questionVisible) break;
       const candidates = this.page.getByRole('button', { name: START_NOW });
       const n = await candidates.count().catch(() => 0);
       let clicked = false;
@@ -71,11 +89,29 @@ export class SelfAssessmentPage {
         const label = ((await b.textContent().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim();
         if (DISCUSSION.test(label)) continue;            // the conversation box, not the quiz
         if (!(await b.isVisible({ timeout: 1_000 }).catch(() => false))) continue;
-        await b.click().catch(() => {});
-        clicked = true;
-        break;
+        await b.scrollIntoViewIfNeeded().catch(() => {});
+        // `clicked` only when the click ACTUALLY lands. The old code set it true
+        // even when .click() threw (swallowed) — so a modal backdrop intercepting
+        // the click looked like success and the quiz never started. force:true on
+        // retries bypasses an intercepting overlay.
+        await b.click({ force: i > 0, timeout: 5_000 }).then(() => { clicked = true; }).catch(() => {});
+        if (clicked) break;
+      }
+      // DOM-level fallback: click the Start-Now button directly in the page. This
+      // bypasses Playwright actionability entirely, so an overlay/backdrop that
+      // intercepts a normal click can't stop it.
+      if (!clicked) {
+        clicked = await this.page.evaluate(() => {
+          const vis = (e: Element) => (e as HTMLElement).offsetParent !== null;
+          const re = /start\s*now|अभी\s*शुरू|शुरू\s*करें/i;
+          const btn = Array.from(document.querySelectorAll('button, [role="button"]'))
+            .find((b) => vis(b) && re.test(b.textContent || '') && !/बातचीत/i.test(b.textContent || ''));
+          if (btn) { (btn as HTMLElement).click(); return true; }
+          return false;
+        }).catch(() => false);
       }
       if (!clicked) await this.clickByText([START_NOW]);
+      if (process.env.QUIZ_DEBUG) console.log(`[quiz] startNow attempt ${i}: clicked=${clicked}`);
       await this.page.waitForTimeout(1_500);
     }
   }
@@ -266,6 +302,15 @@ export class SelfAssessmentPage {
     const VERDICT = /(congratulation|not\s*cleared|बधाई हो|पास हो गया|पूरा कर लिया|पास नहीं|क्लियर नहीं|उत्तीर्ण नहीं)/i;
     for (const f of this.page.frames()) {
       const txt = (await f.locator('body').innerText().catch(() => '')) || '';
+      // The per-question FEEDBACK for a correct answer also says "बधाई हो!" /
+      // "congratulations" and "सही उत्तर" — which VERDICT matches. Treating that
+      // as the result screen ends the quiz after its first correct answer (the
+      // "answered 1, key holds 10" failure). Skip a frame that looks like
+      // per-question feedback (shows "सही उत्तर"/"correct answer" but NOT the
+      // real results header).
+      const isFeedback = /सही\s*उत्तर|correct\s*answer|आपका\s*उत्तर/i.test(txt)
+        && !/मूल्यांकन\s*परिणाम|assessment\s*results|आपका\s*स्कोर|your\s*score/i.test(txt);
+      if (isFeedback) continue;
       if (VERDICT.test(txt) || /आपका\s*स्कोर|your\s*score/i.test(txt)) return true;
     }
     if (await this.goHomeBtn.isVisible().catch(() => false)) return true;
@@ -482,9 +527,27 @@ export class SelfAssessmentPage {
 
       await this.radios.first().waitFor({ state: 'attached', timeout: 8_000 }).catch(() => {});
       const visRadios = await this.page.evaluate(() => (Array.from(document.querySelectorAll('input.mdc-radio__native-control, input[type="radio"]')) as HTMLElement[]).filter((r) => (r.closest('label,.mdc-form-field,mat-radio-button,li') as HTMLElement)?.offsetParent !== null || r.offsetParent !== null).length).catch(() => -1);
+      // DIAGNOSTIC census: count each interactive element TYPE on this page, so we
+      // can see when a page's question is a dropdown/match (role=option / select /
+      // draggable) that has NO radio/checkbox and the engine therefore never sees.
+      const census = await this.page.evaluate(() => {
+        const vis = (e: Element) => (e as HTMLElement).offsetParent !== null;
+        const n = (sel: string) => Array.from(document.querySelectorAll(sel)).filter(vis).length;
+        const stem = (document.querySelector('.question-text, [class*="question"] , mat-card, .mcq') as HTMLElement)?.innerText?.replace(/\s+/g, ' ').trim().slice(0, 90) || '';
+        return {
+          radio: n('input[type="radio"], input.mdc-radio__native-control'),
+          checkbox: n('input[type="checkbox"], input.mdc-checkbox__native-control'),
+          option: n('[role="option"]'),
+          select: n('select, mat-select'),
+          draggable: n('[draggable="true"], .cdk-drag'),
+          stem,
+        };
+      }).catch(() => null);
+      this.stepCensus.push({ step, answered: -1, ...(census || {}) });
       const pageAnswered = await answerPage();
+      if (this.stepCensus.length) this.stepCensus[this.stepCensus.length - 1].answered = pageAnswered;
       answered += pageAnswered;
-      if (process.env.QUIZ_DEBUG) console.log(`[quiz] step ${step}: visibleRadios=${visRadios} answered=${pageAnswered}`);
+      if (process.env.QUIZ_DEBUG) console.log(`[quiz] step ${step}: census=${JSON.stringify(census)} answered=${pageAnswered}`);
 
       // After each answer the quiz shows its feedback ("सही उत्तर: …") and waits
       // for Next. Clicking the quiz's own button here is what walks the whole
@@ -565,9 +628,10 @@ export class SelfAssessmentPage {
     const { count, unmatched, picks } = await this.pickPerQuestion(key, /* wrong */ false);
     for (const u of unmatched) {
       let d: any = null; try { d = JSON.parse(u); } catch { /* plain string */ }
-      if (!d) { console.log(`[quiz] ⚠️  UNANSWERED: "${u}"`); continue; }
+      if (!d) { console.log(`[quiz] ⚠️  UNANSWERED: "${u}"`); this.unansweredStems.push({ stem: u, rendered: [] }); continue; }
       console.log(`[quiz] ⚠️  UNANSWERED (optionScore ${d.bestScore}/${d.strong} needed) q="${d.stem}"`);
       (d.rendered || []).forEach((r: string, i: number) => console.log(`[quiz]        rendered[${i}]: ${r}`));
+      this.unansweredStems.push({ stem: String(d.stem || '').slice(0, 120), rendered: (d.rendered || []).map((r: string) => String(r).slice(0, 60)) });
     }
     if (process.env.QUIZ_DEBUG) {
       for (const p of picks ?? []) {
@@ -595,7 +659,7 @@ export class SelfAssessmentPage {
       const byQid = new Map<string, { ids: string[]; texts: string[] }>(byQidRaw);
       const qidOf = (v: string) => { const m = String(v).match(/^(Q\d+)/i); return m ? m[1] : String(v).split('-')[0]; };
       const labelText = (r: Element) => {
-        const box = r.closest('mat-radio-button, .quiz-radio-button, label, .mdc-form-field, .option, .question-wrapper li') as HTMLElement | null;
+        const box = r.closest('mat-radio-button, mat-checkbox, .mdc-checkbox, .mat-mdc-list-item, .quiz-radio-button, label, .mdc-form-field, .option, .question-wrapper li') as HTMLElement | null;
         return norm(box?.textContent || '');
       };
       const eq = (a: string, b: string) => !!a && !!b && (a === b || (a.length > 3 && b.length > 3 && (a.includes(b) || b.includes(a))));
@@ -647,8 +711,11 @@ export class SelfAssessmentPage {
         correct: p.opts.filter((o: any) => o.isCorrect).map((o: any) => norm(o.text)),
       }));
 
-      const radios = (Array.from(document.querySelectorAll('input.mdc-radio__native-control, input[type="radio"]')) as HTMLInputElement[])
-        .filter((r) => (r.closest('label,.mdc-form-field,mat-radio-button,li') as HTMLElement)?.offsetParent !== null || (r as HTMLElement).offsetParent !== null);
+      // Include CHECKBOXES, not just radios: multi-select questions ("More than
+      // one answer possible") render checkboxes, and leaving them blank sinks the
+      // score below the 75% gate.
+      const radios = (Array.from(document.querySelectorAll('input.mdc-radio__native-control, input[type="radio"], input.mdc-checkbox__native-control, input[type="checkbox"]')) as HTMLInputElement[])
+        .filter((r) => (r.closest('label,.mdc-form-field,mat-radio-button,mat-checkbox,.mdc-checkbox,.mat-mdc-list-item,li') as HTMLElement)?.offsetParent !== null || (r as HTMLElement).offsetParent !== null);
       if (!radios.length) return { count: 0, unmatched: [] as string[], picks: [] as any[] };
 
       const groups = new Map<string, HTMLInputElement[]>();
@@ -694,11 +761,19 @@ export class SelfAssessmentPage {
         const correctTexts = new Set<string>();
         for (const pq of candidates) for (const ct of pq.correct) if (ct) correctTexts.add(ct);
 
-        let pick: HTMLInputElement | undefined;
+        // Checkboxes = MULTI-SELECT ("More than one answer possible") → tick EVERY
+        // correct option. Radios = single → the one correct option.
+        const isCheckbox = rs.some((r) => r.type === 'checkbox' || r.classList.contains('mdc-checkbox__native-control'));
+        const pickCorrect = (isCorrect: (r: HTMLInputElement) => boolean): HTMLInputElement[] => {
+          if (wrong) { const w = rs.find((r) => !isCorrect(r)) || rs[rs.length - 1]; return w ? [w] : []; }
+          const correct = rs.filter((r) => isCorrect(r));
+          return isCheckbox ? correct : correct.slice(0, 1);
+        };
+
+        let toSelect: HTMLInputElement[] = [];
         if (correctTexts.size) {
           const cts = [...correctTexts];
-          const isCorrect = (r: HTMLInputElement) => { const t = labelText(r); return cts.some((ct) => eq(t, ct)); };
-          pick = wrong ? (rs.find((r) => !isCorrect(r)) || rs[rs.length - 1]) : rs.find((r) => isCorrect(r));
+          toSelect = pickCorrect((r) => { const t = labelText(r); return cts.some((ct) => eq(t, ct)); });
         }
         // 2) FALLBACK: byQid id/text — ONLY when that key entry really belongs to
         //    this question. Question ids repeat across levels (every level starts
@@ -706,26 +781,28 @@ export class SelfAssessmentPage {
         //    L2's "Q10x" option. Require the entry's own option text to be one of
         //    the rendered options; otherwise leave it unanswered so the caller
         //    re-fetches the key instead of guessing.
-        if (!pick) {
+        if (!toSelect.length) {
           const info = byQid.get(qid);
           const belongsHere = !!info && info.texts.some((ct) => rendered.some((ro) => eq(ro, norm(ct))));
-          const isCorrect = (r: HTMLInputElement) => !!info && (info.ids.includes(r.value)
-            || info.texts.some((ct) => eq(labelText(r), norm(ct))));
-          if (info && belongsHere) pick = wrong ? (rs.find((r) => !isCorrect(r)) || rs[rs.length - 1]) : rs.find((r) => isCorrect(r));
+          if (info && belongsHere) {
+            toSelect = pickCorrect((r) => info.ids.includes(r.value) || info.texts.some((ct) => eq(labelText(r), norm(ct))));
+          }
         }
         // last resort for a fail: any non-first option; for a pass: nothing (skip).
-        if (!pick && wrong) pick = rs[rs.length - 1];
+        if (!toSelect.length && wrong) toSelect = [rs[rs.length - 1]];
 
-        if (pick) {
+        if (toSelect.length) {
           picks.push({
             stem: stem.slice(0, 70),
-            picked: labelText(pick).slice(0, 60),
+            picked: toSelect.map((p) => labelText(p).slice(0, 40)).join(' + '),
             expected: [...correctTexts].map((t) => String(t).slice(0, 60)),
             candidates: candidates.length,
           });
-          const box = pick.closest('label, .mdc-form-field, mat-radio-button, li') as HTMLElement | null;
-          (box || pick).click();
-          if (!pick.checked) { pick.click(); pick.checked = true; pick.dispatchEvent(new Event('change', { bubbles: true })); }
+          for (const pick of toSelect) {
+            const box = pick.closest('label, .mdc-form-field, mat-radio-button, mat-checkbox, .mdc-checkbox, .mat-mdc-list-item, li') as HTMLElement | null;
+            (box || pick).click();
+            if (!pick.checked) { pick.click(); pick.checked = true; pick.dispatchEvent(new Event('change', { bubbles: true })); }
+          }
           count++;
         } else {
           // No pool entry matched this question — it is left UNANSWERED, which

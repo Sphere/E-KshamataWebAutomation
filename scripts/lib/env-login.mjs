@@ -110,15 +110,13 @@ async function acceptTermsIfPresent(page) {
 /**
  * Log in through the Ekshamata web UI by password.
  *
- * Staging runs a different build and does not carry production's
- * #emailOrMobile / #login-username-password ids, so the looser selectors are
- * used THERE ONLY — on production they could resolve to a header search box
- * instead of the login field (locator.or() picks the first match in DOM order).
+ * The login build no longer carries production's old #emailOrMobile /
+ * #login-username-password ids — staging/UAT never had them, and after the
+ * UAT→prod migration (2026-10-10) production serves that same build (id field
+ * labelled "Phone Number (or) Email ID"). So the resilient locators below (id
+ * FIRST, then role/placeholder) are used for every environment.
  */
 export async function loginWithPassword(page, baseUrl, email, password) {
-  // Staging AND UAT run the login build without production's field ids.
-  const isStaging = /staging|(^|\/\/|-)uat\./i.test(baseUrl);
-
   // ── open the login screen ──
   await page.goto(`${baseUrl}/page/home`, { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('networkidle').catch(() => {});
@@ -153,25 +151,21 @@ export async function loginWithPassword(page, baseUrl, email, password) {
   await page.locator('input[type="password"]').first().waitFor({ state: 'visible', timeout: 10000 });
 
   // ── credentials ──
-  const idField = isStaging
-    ? page
-        .locator('#emailOrMobile')
-        .or(page.getByRole('textbox', { name: /phone number|email|मोबाइल|ईमेल/i }))
-        .or(page.getByPlaceholder(/phone number|email|मोबाइल|ईमेल/i))
-        .first()
-    : page.locator('#emailOrMobile').first();
+  const idField = page
+    .locator('#emailOrMobile')
+    .or(page.getByRole('textbox', { name: /phone number|email|मोबाइल|ईमेल/i }))
+    .or(page.getByPlaceholder(/phone number|email|मोबाइल|ईमेल/i))
+    .first();
   await idField.waitFor({ state: 'visible', timeout: 15000 });
   await idField.fill(email);
 
   const pwdField = page.locator('input[type="password"]').first();
   await pwdField.fill(password);
 
-  const submitBtn = isStaging
-    ? page
-        .locator('#login-username-password')
-        .or(page.getByRole('button', { name: /^(log\s?in|sign\s?in|लॉगिन|लॉग\s?इन)$/i }))
-        .first()
-    : page.locator('#login-username-password').first();
+  const submitBtn = page
+    .locator('#login-username-password')
+    .or(page.getByRole('button', { name: /^(log\s?in|sign\s?in|लॉगिन|लॉग\s?इन)$/i }))
+    .first();
   await submitBtn.scrollIntoViewIfNeeded().catch(() => {});
   await submitBtn.click();
 

@@ -18,15 +18,14 @@ import { Page, expect } from '@playwright/test';
 export const BASE_URL = process.env.BASE_URL ?? 'https://ekshamata.aastrika.org';
 
 /**
- * Staging runs a different build: it does not carry the #emailOrMobile /
- * #login-username-password ids production uses. UAT (ekshamata-uat) runs that
- * same build — its login failed on the missing id until it was included here.
- * The looser selectors below are scoped to staging + UAT ONLY — on production
- * they could resolve to the wrong element (locator.or() picks the first match in
- * DOM ORDER, so a header search box would win over the login field), and
- * production works with its ids today.
+ * The login build no longer carries production's old #emailOrMobile /
+ * #login-username-password ids. Staging and UAT never had them, and after the
+ * UAT→prod migration (2026-10-10) production serves that same build too — the
+ * id field is now labelled "Phone Number (or) Email ID" with no stable id. So
+ * the resilient locators below (id FIRST, then role/placeholder) are used for
+ * every environment: the id wins where it still exists, the role/placeholder
+ * match the current build otherwise.
  */
-const IS_STAGING = /staging|(^|\/\/|-)uat\./i.test(BASE_URL);
 
 /** True once we have left the /public/login screen (logged in or on a gate). */
 const onLoginPage = (u: string) => /\/public\/login/.test(u);
@@ -172,12 +171,10 @@ export async function loginWithPassword(
   await openLoginScreen(page);
   await selectPasswordMode(page);
 
-  const idField = IS_STAGING
-    ? page.locator('#emailOrMobile')
-        .or(page.getByRole('textbox', { name: /phone number|email|मोबाइल|ईमेल/i }))
-        .or(page.getByPlaceholder(/phone number|email|मोबाइल|ईमेल/i))
-        .first()
-    : page.locator('#emailOrMobile').first();
+  const idField = page.locator('#emailOrMobile')
+    .or(page.getByRole('textbox', { name: /phone number|email|मोबाइल|ईमेल/i }))
+    .or(page.getByPlaceholder(/phone number|email|मोबाइल|ईमेल/i))
+    .first();
   await idField.waitFor({ state: 'visible', timeout: 15_000 });
   await idField.fill(identifier);
 
@@ -185,11 +182,9 @@ export async function loginWithPassword(
   await pwdField.waitFor({ state: 'visible', timeout: 15_000 });
   await pwdField.fill(password);
 
-  const submitBtn = IS_STAGING
-    ? page.locator('#login-username-password')
-        .or(page.getByRole('button', { name: /^(log\s?in|sign\s?in|लॉगिन|लॉग\s?इन)$/i }))
-        .first()
-    : page.locator('#login-username-password').first();
+  const submitBtn = page.locator('#login-username-password')
+    .or(page.getByRole('button', { name: /^(log\s?in|sign\s?in|लॉगिन|लॉग\s?इन)$/i }))
+    .first();
   await expect(submitBtn).toBeEnabled({ timeout: 10_000 });
   await submitBtn.scrollIntoViewIfNeeded().catch(() => {});
   await submitBtn.click();

@@ -1,5 +1,21 @@
 import { test, type Page } from '@playwright/test';
 import { fetchRealAnswerKey, fetchKeyByDoId } from '../helpers/real-answer-key';
+import { mergeAnswerKeys, type AnswerKey } from '../../src/utils/answer-key';
+import { appendFileSync, mkdirSync } from 'node:fs';
+
+/**
+ * TEMP DIAGNOSTIC — append one JSON line per assessment attempt to
+ * test-results/assessment-diag.jsonl, so a stuck/stopped run still leaves the
+ * data (key size, how many questions have NO correct option = poisoned, how
+ * many got answered, whether a result was reached, the on-screen text). Remove
+ * once the course-assessment issue is resolved.
+ */
+function writeAssessmentDiag(row: Record<string, unknown>): void {
+  try {
+    mkdirSync('test-results', { recursive: true });
+    appendFileSync('test-results/assessment-diag.jsonl', JSON.stringify({ t: new Date().toISOString(), ...row }) + '\n');
+  } catch { /* diagnostics must never break the run */ }
+}
 import { SelfAssessmentPage } from './self-assessment.page';
 import { START_COURSE } from '../helpers/labels';
 
@@ -132,12 +148,22 @@ export class CoursePlayer {
    */
   private async isAdvanceReady(): Promise<boolean> {
     return this.page.evaluate(() => {
-      const nav = document.querySelector('app-player-navigation-widget') as HTMLElement | null;
+      // Scope to the player's own nav (never the level carousel's Next). The
+      // widget's class varies by build, so accept the known player-nav classes.
+      const nav = document.querySelector('app-player-navigation-widget, .player-navigation, [class*="player-nav"]') as HTMLElement | null;
       if (!nav) return false;
-      // Module "Next" — English "Next" or Hindi "अगला" (ignore "पिछला"/Previous).
-      return Array.from(nav.querySelectorAll('button')).some((b) =>
-        /^(next|अगला)$/i.test(((b as HTMLElement).textContent || '').trim())
-        && !(b as HTMLButtonElement).disabled && (b as HTMLElement).offsetParent !== null);
+      // Match "Next"/"अगला"/"आगे" as a FRAGMENT, not an exact string: a Material
+      // button carries an icon ligature in its text ("arrow_forward Next"), so
+      // an exact /^next$/ match found nothing and every module waited out its
+      // full 120-180s timeout. Also read aria-label/title for icon-only buttons.
+      const isNext = (t: string) => /(^|\s|>)(next|अगला|आगे)(\s|$|<)/i.test(t) || /^(next|अगला|आगे)$/i.test(t);
+      const isPrev = (t: string) => /(prev|previous|back|पिछला|पीछे)/i.test(t);
+      return Array.from(nav.querySelectorAll('button')).some((b) => {
+        const el = b as HTMLElement;
+        const t = `${el.textContent || ''} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('title') || ''}`.trim();
+        return isNext(t) && !isPrev(t)
+          && !(b as HTMLButtonElement).disabled && el.offsetParent !== null;
+      });
     });
   }
 
@@ -245,23 +271,50 @@ export class CoursePlayer {
     // course at 86% with every module "consumed". Reading the id off the URL
     // fetches the right artifact deterministically, and the sniffed pool is
     // merged in behind it rather than relied upon.
-    const doId = (this.page.url().match(/(do_\w+)/) || [])[1] || '';
-    const freshKey = async () =>
-      (await fetchKeyByDoId(this.page, doId).catch(() => null))
-      || (await fetchRealAnswerKey(this.page).catch(() => null));
+    const firstDoId = (this.page.url().match(/(do_\w+)/) || [])[1] || '';
+    // ACCUMULATE across pages. A post-assessment pulls its questions from several
+    // questionsets; fetching one fixed do_id covered only one set, so the other
+    // questions had no key and were submitted blank (10-question quiz answered 1).
+    // Each refetch now re-reads the CURRENT page's do_id AND the live page key,
+    // and MERGES both into the running key so coverage grows as the quiz advances.
+    let acc: AnswerKey | null = null;
+    const freshKey = async (): Promise<AnswerKey | null> => {
+      const curDoId = (this.page.url().match(/(do_\w+)/) || [])[1] || firstDoId;
+      acc = mergeAnswerKeys(acc, await fetchKeyByDoId(this.page, curDoId).catch(() => null));
+      acc = mergeAnswerKeys(acc, await fetchRealAnswerKey(this.page).catch(() => null));
+      return acc;
+    };
 
     const key = await freshKey();
+    // Snapshot the key BEFORE answering so a hang mid-quiz still leaves evidence:
+    // poisonedInPool = questions whose options carry NO isCorrect flag (a graded
+    // gate with stripped answers can't be auto-passed from any learner source).
+    const poisonedInPool = key ? key.pool.filter((p) => !p.options.some((o) => o.isCorrect)).length : 0;
+    writeAssessmentDiag({
+      phase: 'pre-answer', firstDoId, url: this.page.url(),
+      hasKey: !!key, keyQids: key?.byQid.size ?? 0, poolSize: key?.pool.length ?? 0, poisonedInPool,
+    });
     if (key) {
       // re-fetch per unanswered page: a paginated 87-q quiz loads questionsets as
       // it advances, so the pool keeps growing — this reaches full coverage.
       const answered = await sa.completeWithKey(key, 100, freshKey);
-      console.log(`[assessment] answered ${answered} question(s)` + ` — key holds ${key.byQid.size}${doId ? `, from ${doId}` : ''}`);
+      console.log(`[assessment] answered ${answered} question(s)` + ` — key holds ${(acc ?? key).byQid.size} across all questionsets${firstDoId ? `, from ${firstDoId}` : ''}`);
+      const reachedResult = await sa.isResult();
+      const screenText = ((await this.page.locator('body').innerText().catch(() => '')) || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+      writeAssessmentDiag({
+        phase: 'post-answer', firstDoId, answered,
+        finalKeyQids: (acc ?? key).byQid.size, poolSize: (acc ?? key).pool.length, poisonedInPool: (acc ?? key).pool.filter((p) => !p.options.some((o) => o.isCorrect)).length,
+        reachedResult, url: this.page.url(),
+        stepCensus: sa.stepCensus,          // per-page element types (spot the dropdown/match pages)
+        unanswered: sa.unansweredStems,     // stems the engine couldn't answer
+        screen: screenText,
+      });
       // When an assessment ends without reaching its result screen, keep the
       // evidence: the screen it stopped on is the only thing that explains why,
       // and re-running to see it costs minutes each time.
       if (!(await sa.isResult())) {
         const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const shot = `test-results/assessment-stuck-${doId || 'unknown'}-${stamp}.png`;
+        const shot = `test-results/assessment-stuck-${firstDoId || 'unknown'}-${stamp}.png`;
         await this.page.screenshot({ path: shot, fullPage: true }).catch(() => {});
         const seen = await this.page.evaluate(() => {
           const vis = (e: Element) => (e as HTMLElement).offsetParent !== null;

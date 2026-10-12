@@ -109,6 +109,44 @@ export function buildAnswerKey(quiz: any): AnswerKey {
 }
 
 /**
+ * Union two AnswerKeys so coverage grows across questionsets.
+ *
+ * An in-course POST-assessment draws its questions from SEVERAL questionsets,
+ * but the key was fetched once for a single do_id — so only that set's questions
+ * matched and the rest were left blank (a 10-question quiz answered 1, failed,
+ * and left the course short of 100%). Merging each page's questionset in as the
+ * quiz advances gives the per-page matcher the full bank.
+ *
+ * The `pool` (the primary matcher's source, keyed by question TEXT) is merged in
+ * full. `byQid` only ADDS new qids and never unions a colliding one: question
+ * ids repeat across questionsets (every set starts at Q100…), so unioning them
+ * would mix two different questions' answers. The pool match already covers the
+ * colliding ones, and the byQid fallback stays un-poisoned.
+ */
+export function mergeAnswerKeys(a: AnswerKey | null, b: AnswerKey | null): AnswerKey | null {
+  if (!a) return b;
+  if (!b) return a;
+
+  const correctOptionIds = new Set<string>([...a.correctOptionIds, ...b.correctOptionIds]);
+  const correctOptions = new Set<string>([...a.correctOptions, ...b.correctOptions]);
+
+  const byQuestion = new Map<string, string>(a.byQuestion);
+  for (const [q, t] of b.byQuestion) if (!byQuestion.has(q)) byQuestion.set(q, t);
+
+  // ADD-ONLY on qid: never union a colliding qid (would mix questionsets).
+  const byQid = new Map<string, QuestionKey>();
+  for (const [qid, k] of a.byQid) byQid.set(qid, { correctIds: new Set(k.correctIds), correctTexts: new Set(k.correctTexts) });
+  for (const [qid, k] of b.byQid) if (!byQid.has(qid)) byQid.set(qid, { correctIds: new Set(k.correctIds), correctTexts: new Set(k.correctTexts) });
+
+  // Pool is keyed by question text — merge in full, deduped.
+  const seen = new Set<string>(a.pool.map((p) => p.question));
+  const pool = [...a.pool];
+  for (const p of b.pool) if (p.question && !seen.has(p.question)) { seen.add(p.question); pool.push(p); }
+
+  return { correctOptionIds, byQuestion, correctOptions, byQid, pool, size: byQuestion.size };
+}
+
+/**
  * Fetch + build the answer key for a quiz content id (token path — questionset
  * hierarchy in edit mode; needs SPHERE_API_TOKEN). Prefer the session-based
  * fetchRealAnswerKey() (tests/helpers/real-answer-key.ts) which needs no token.
