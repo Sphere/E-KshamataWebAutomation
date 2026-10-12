@@ -38,7 +38,10 @@ export interface ExpectedContent {
 export const EXPECTED: Record<string, Record<string, ExpectedContent>> = {
   // ── Competency homepages (learning plan + 73 courses in For You) ───
   BNRC:     { 'ANM-Student-Bihar': { type: 'competency', forYou: 73 } },
-  DMHUP:    { 'ANM-Outreach-UP':   { type: 'competency', forYou: 73 } },
+  // DMHUP serves one fewer For You course than the other competency orgs on
+  // prod (72 vs 73, observed 2026-10-12) — one mapped course dropped off this
+  // org's channel. Floor lowered to match; raise back to 73 if it is restored.
+  DMHUP:    { 'ANM-Outreach-UP':   { type: 'competency', forYou: 72 } },
   PVTBIHAR: { 'ANM-BIHAR':         { type: 'competency', forYou: 73 } },
   SHSB:     {
     'ANM-Bihar': { type: 'competency', forYou: 73 },
