@@ -1,0 +1,104 @@
+name: Prod Regression (e-Kshamata) — full suite on production
+
+# Runs the e-Kshamata WEB suite against PRODUCTION only, on demand.
+#
+#   Actions tab → "Prod Regression (e-Kshamata)" → Run workflow
+#
+# It provisions a brand-new BNRC learner on production (yopmail — excluded from
+# prod reports), proves it can log in, then runs the full functional suite AS
+# that user, plus every per-org suite. Reports are uploaded as artifacts and the
+# headline is written to the run's Summary page.
+#
+# "Heavy" flows (competency climb, course completion, certificate, org badge)
+# need an ENROLLED user + course/competency IDs — a fresh prod user is not
+# enrolled (competency submit is blocked for fresh users, see project guide §8),
+# so they are OFF by default and can be switched on with the input below once a
+# suitable COURSE_ID / COMPETENCY is provided via repository secrets/vars.
+on:
+  workflow_dispatch:
+    inputs:
+      include_heavy:
+        description: 'Also run competency / course-completion / certificate / badge (needs an enrolled user + IDs)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ekshamata-prod-regression
+  cancel-in-progress: true
+
+jobs:
+  prod-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BASE_URL: https://ekshamata.aastrika.org
+      CREATE_ORG: BNRC
+      REPORT_LABEL: prod-regression
+      HEADLESS: 'true'
+      # Provisioning API token (api_admin bearer). Production accepts the bearer
+      # alone — no expiring session cookie needed.
+      SPHERE_API_TOKEN: ${{ secrets.SPHERE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: Create a new user on production (and prove it can log in)
+        id: create
+        env:
+          JSON_OUT: test-reports/results-create-user.json
+        run: npx playwright test tests/create-env-user.spec.ts --project=Chrome
+
+      # created-users.txt: "ISO | ORG | role | email | password | userId | env=<host>"
+      - name: Use that user for the suite
+        if: ${{ steps.create.outcome == 'success' }}
+        run: |
+          host=$(node -e "console.log(new URL(process.env.BASE_URL).hostname)")
+          line=$(grep " | env=${host}$" created-users.txt | tail -1)
+          email=$(echo "$line" | awk -F' [|] ' '{print $4}')
+          password=$(echo "$line" | awk -F' [|] ' '{print $5}')
+          echo "::add-mask::$password"
+          echo "Signed in as $email for the suite"
+          echo "EKSHAMATA_EMAIL=$email" >> "$GITHUB_ENV"
+          echo "EKSHAMATA_PASSWORD=$password" >> "$GITHUB_ENV"
+
+      - name: Full functional suite (as the new user)
+        if: ${{ !cancelled() && steps.create.outcome == 'success' }}
+        env:
+          JSON_OUT: test-reports/results.json
+        run: >
+          npx playwright test
+          tests/smoke.spec.ts tests/login.spec.ts tests/account-verify.spec.ts
+          tests/ekshamata-clicks.spec.ts tests/org-content.spec.ts tests/user-creation.spec.ts
+          --project=Chrome
+
+      - name: Every per-org suite
+        if: ${{ !cancelled() && steps.create.outcome == 'success' }}
+        run: npx playwright test --project=orgs
+
+      - name: Heavy flows (optional — competency / course / certificate / badge)
+        if: ${{ !cancelled() && steps.create.outcome == 'success' && inputs.include_heavy }}
+        continue-on-error: true
+        env:
+          JSON_OUT: test-reports/results-heavy.json
+          COURSE_ID: ${{ vars.PROD_COURSE_ID }}
+          COMPETENCY: ${{ vars.PROD_COMPETENCY }}
+        run: >
+          npx playwright test
+          tests/competency-course.spec.ts tests/competency-stepper.spec.ts
+          tests/course-complete.spec.ts tests/certificate.spec.ts tests/account-badge.spec.ts
+          --project=Chrome
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-regression-${{ github.run_number }}
+          path: |
+            brand-reports/
+            playwright-report/
+            test-reports/
+            created-users.txt
+          retention-days: 90
