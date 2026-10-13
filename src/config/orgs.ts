@@ -148,6 +148,14 @@ export const ORGS: Record<string, OrgConfig> = {
     profileFile: 'NHMMADHYA.json',
     landingPage: 'Homepage',
   },
+  TESTUP: {
+    key: 'TESTUP',
+    name: 'Test Uttar Pradesh',
+    orgId: '013979705730662400309',
+    designations: [{ designation: 'ANM-UP', emailPrefix: 'TESTUP-ANM' }],
+    profileFile: 'TESTUP.json',
+    landingPage: 'Competency Homepage',
+  },
   TESTBIHAR: {
     key: 'TESTBIHAR',
     name: 'Test Bihar',

@@ -1,0 +1,62 @@
+{
+  "preferences": {
+    "language": "en"
+  },
+  "profileReq": {
+    "skills": {
+      "certificateDetails": "",
+      "additionalSkills": ""
+    },
+    "professionalDetails": [
+      {
+        "profession": "ANM",
+        "orgType": "Government",
+        "qualification": "ANM",
+        "responsibilities": "",
+        "name": "Test UP ",
+        "professionOtherSpecify": "",
+        "designation": "ANM-UP",
+        "completePostalAddress": "",
+        "doj": "",
+        "additionalAttributes": {},
+        "instituteName": "NA"
+      }
+    ],
+    "employmentDetails": {
+      "allotmentYearOfService": "",
+      "payType": "",
+      "civilListNo": "",
+      "service": "",
+      "dojOfService": "",
+      "pinCode": "",
+      "officialPostalAddress": "",
+      "cadre": "",
+      "employeeCode": ""
+    },
+    "academics": [
+      {
+        "nameOfQualification": "",
+        "yearOfPassing": "",
+        "nameOfInstitute": "",
+        "type": "GRADUATE"
+      }
+    ],
+    "personalDetails": {
+      "firstname": "Aastrika",
+      "profileLocation": "Ekshamata/language-update",
+      "postalAddress": "India,up,up",
+      "regNurseRegMidwifeNumber": "NA",
+      "surname": "Account",
+      "dob": "25/2/1971",
+      "officialEmail": "",
+      "personalEmail": ""
+    },
+    "id": "",
+    "interests": {
+      "hobbies": "",
+      "professional": ""
+    },
+    "userId": ""
+  },
+  "mandatoryFieldsExists": false
+}

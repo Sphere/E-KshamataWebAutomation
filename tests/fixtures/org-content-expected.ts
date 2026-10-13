@@ -43,6 +43,8 @@ export const EXPECTED: Record<string, Record<string, ExpectedContent>> = {
   // org's channel. Floor lowered to match; raise back to 73 if it is restored.
   DMHUP:    { 'ANM-Outreach-UP':   { type: 'competency', forYou: 72 } },
   PVTBIHAR: { 'ANM-BIHAR':         { type: 'competency', forYou: 73 } },
+  // Test Uttar Pradesh — competency homepage (For You 72, observed 2026-10-13).
+  TESTUP:   { 'ANM-UP':            { type: 'competency', forYou: 72 } },
   SHSB:     {
     'ANM-Bihar': { type: 'competency', forYou: 73 },
     // CHO-Bihar is NOT a competency homepage: verified on SHSB-CHO005 that the
