@@ -40,7 +40,7 @@ function orgRoles() {
 const ROLES = orgRoles();
 
 // The competency-homepage orgs (their home shows the ANM Learning Plan).
-const COMPETENCY_ORGS = ['BNRC', 'DMHUP', 'PVTBIHAR', 'PVTUP', 'SHSB', 'DMHFWUP'];
+const COMPETENCY_ORGS = ['BNRC', 'DMHUP', 'PVTBIHAR', 'PVTUP', 'SHSB', 'DMHFWUP', 'TESTUP'];
 
 const require = createRequire(import.meta.url);
 const cli = require.resolve('@playwright/test/cli');

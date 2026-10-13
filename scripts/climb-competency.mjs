@@ -42,7 +42,7 @@ function orgRoles() {
 const ROLES = orgRoles();
 
 // The competency-homepage orgs (their home shows the ANM Learning Plan).
-const COMPETENCY_ORGS = ['BNRC', 'DMHUP', 'PVTBIHAR', 'PVTUP', 'SHSB', 'DMHFWUP'];
+const COMPETENCY_ORGS = ['BNRC', 'DMHUP', 'PVTBIHAR', 'PVTUP', 'SHSB', 'DMHFWUP', 'TESTUP'];
 
 // The environments the scripts can run against. Add more here as needed.
 const BASE_URLS = [

@@ -37,6 +37,7 @@
     "climb:pvtbihar": "node scripts/climb-competency.mjs PVTBIHAR",
     "climb:pvtup": "node scripts/climb-competency.mjs PVTUP",
     "climb:shsb": "node scripts/climb-competency.mjs SHSB",
+    "climb:testup": "node scripts/climb-competency.mjs TESTUP",
     "//course": "── Complete a whole course (every module) ──",
     "run:course": "node scripts/run-course.mjs",
     "run:course:prod": "cross-env BASE_URL=https://ekshamata.aastrika.org playwright test tests/course-complete.spec.ts --project=Chrome --headed",
